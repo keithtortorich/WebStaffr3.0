@@ -141,3 +141,23 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# SQLite runtime data (never commit generated/local databases)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Local secrets
+.env
