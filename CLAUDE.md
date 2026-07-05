@@ -95,3 +95,13 @@ Second slice of the intake → generated customer site → Angel widget MVP flow
 **Verified this session:** full suite 81/81 passing (73 prior + 8 new), health check still HEALTHY. Manually exercised `POST /intake` → `GET /sites/{tenant_id}` end-to-end with `TestClient`, including asserting no internal field leaked, before writing formal tests.
 
 **Not yet done:** the actual Lovable project (the multi-tenant app that calls this endpoint and embeds the Angel widget) — next step, tracked in-session.
+
+### Session Addendum (2026-07-05) — Lovable project created ("Site Weaver")
+
+Created in "Keith's Lovable" workspace (`cSJboYjfYU9FSUi9aKgo`), project ID `27e51275-323a-4156-a7f9-9bc41c7bf36c` — [editor](https://lovable.dev/projects/27e51275-323a-4156-a7f9-9bc41c7bf36c), [preview](https://id-preview--27e51275-323a-4156-a7f9-9bc41c7bf36c.lovable.app). Cost: 3.4 credits for the initial build. Checked the workspace first (`list_projects`) — no prior WebStaffr site existed there; this is genuinely new, not a duplicate.
+
+**What it is:** a single dynamic React (Vite + shadcn/ui) app, NOT one project per customer. Route `/:tenantId` fetches `GET {VITE_API_BASE_URL}/sites/{tenantId}` and renders conditionally per the perfect-site principle -- every optional section (`has()` helper) only renders when its data key is actually present, matching `build_public_site_data()`'s omit-rather-than-null behavior exactly. 404 gets a clean "This site isn't set up yet" state, not a broken page. `public/angel-widget.js` was recreated byte-for-byte from the real widget source (pasted verbatim into the prompt, not paraphrased) and is injected via a `<script data-tenant-id data-api-base>` tag once site data loads, matching the widget's actual embed contract exactly.
+
+Visually verified via a live screenshot (`get_project`) -- index page renders correctly with the explanatory copy and an example-tenant link.
+
+**Real gap, not yet resolved: the backend has no public URL.** `VITE_API_BASE_URL` defaults to `http://localhost:8000`, which resolves to the *visitor's own machine* when the Lovable-hosted site is opened in a browser -- not this backend. Until the FastAPI backend is deployed somewhere reachable (Railway, Fly, Render, etc. -- no hosting decision has been made, see "No auth, CI/CD, hosting... decision made yet" above), the deployed Lovable site cannot actually fetch real tenant data or reach `/chat` for the Angel widget. The app is real and correctly built, but the end-to-end flow (intake → live customer site → working widget) is not yet demonstrable outside local dev. Hosting the backend is the next concrete blocker.
