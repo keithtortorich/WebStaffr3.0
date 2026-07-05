@@ -39,7 +39,7 @@ Everything else — pushes, deployments, new dependencies, architecture or data-
 - No auth, CI/CD, hosting, or production deployment decision made yet.
 - No real credentials configured for GoHighLevel or Grok — `GrokVoiceBackend`/`GoHighLevelClient` remain `[Unverified]` against live accounts until exercised with real keys.
 - The pytest-dependency and CORS-scoping fixes below were committed and pushed to `origin/main` (`3ca933b`) after founder approval.
-- Backend intake endpoint now exists (`POST /intake`, see 2026-07-05 addendum below). Still outstanding: the actual Lovable-generated customer site and wiring the Angel widget into it.
+- Backend intake endpoint now exists (`POST /intake`), plus a public `GET /sites/{tenant_id}` endpoint for the planned multi-tenant Lovable site to read from (see 2026-07-05 addenda below). Still outstanding: the actual Lovable project, and wiring the Angel widget into it.
 
 ### Session Addendum (2026-07-05) — state reconciliation
 
@@ -77,4 +77,21 @@ Built the backend half of "intake" per the MVP scope above: `POST /intake`, a ne
 
 **Verified this session:** full suite 73/73 passing (58 prior + 15 new), health check still HEALTHY. Manually exercised `/intake` and `/intake/presets` with `TestClient` before writing formal tests, confirming request/response shapes matched the design before locking them into assertions.
 
-**Not yet done:** commit + push (same sandbox `.git/index.lock` limitation as the prior addendum — needs to run from the founder's own terminal), and the actual site-generation step (Lovable) that consumes this intake data.
+**Update:** committed and pushed as `90ea737`, via Desktop Commander running directly on the founder's actual machine rather than the sandbox shell (see the process-tooling note below). Full suite re-verified: 73/73 passing.
+
+**Process note — git operations route through Desktop Commander, not the sandbox shell:** the sandbox's `mcp__workspace__bash` operates on a locked-down copy of this repo where `.git/index.lock` is permission-blocked at the mount level — not fixable from there under any circumstances, confirmed across multiple sessions. Desktop Commander (`start_process`/`interact_with_process`) is real access to the founder's Mac, where a stale lock file is just a stale file — checkable (`ps aux | grep git`) and removable like any other local repo issue. Going forward, commit/push happens via Desktop Commander directly in-session, not by handing the founder terminal commands to run themselves.
+
+### Session Addendum (2026-07-05) — public site-data endpoint + Lovable architecture decision
+
+Second slice of the intake → generated customer site → Angel widget MVP flow. Decision made explicitly with the founder before any Lovable credits were spent: **one dynamic multi-tenant Lovable app**, not one Lovable project generated per customer. A tenant_id-driven single app matches the stated long-term goal (hundreds of client sites) — spinning up a new Lovable project per signup doesn't scale the same way and was rejected for that reason.
+
+**What was built:**
+- `webstaffr/site_data.py` — `build_public_site_data()`, a curated projection of `IntakeSubmission`. Deliberately not a raw row dump: internal-ops fields (`lead_routing`, `approver` — often a staff member's personal phone number — plus `timeline`, `notes`, old-site metadata, design-input fields) are never exposed. Optional fields that are `None` are omitted from the response entirely rather than sent as `null`, continuing the perfect-site principle from the prior addendum — the site template does a presence check, never a fabricated-default fallback.
+- `webstaffr/intake.py` — added `IntakeRepository.load_latest_for_tenant()`, refactored the row→dataclass conversion into a shared `_row_to_submission()` helper.
+- `webstaffr/site_router.py` — `GET /sites/{tenant_id}`, mounted alongside `intake_router`. Returns 404 identically for "invalid tenant_id shape" and "valid shape, no submission yet" — a public endpoint shouldn't distinguish those and leak which tenant_ids are real.
+- CORS: `/sites/` prefix added to `ScopedCORSMiddleware` (the Lovable site fetches this client-side, same reasoning as `/chat` and `/intake`).
+- `tests/test_site_data.py` — 8 new tests: public projection correctness, internal-field non-leakage (explicit list of every field that must never appear), optional-field omission vs. real-data inclusion, 404 behavior (unknown vs. invalid tenant_id), latest-submission-wins, CORS.
+
+**Verified this session:** full suite 81/81 passing (73 prior + 8 new), health check still HEALTHY. Manually exercised `POST /intake` → `GET /sites/{tenant_id}` end-to-end with `TestClient`, including asserting no internal field leaked, before writing formal tests.
+
+**Not yet done:** the actual Lovable project (the multi-tenant app that calls this endpoint and embeds the Angel widget) — next step, tracked in-session.

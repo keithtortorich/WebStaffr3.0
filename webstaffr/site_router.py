@@ -1,0 +1,50 @@
+"""FastAPI router serving public, tenant_id-driven site data -- what the
+Lovable-hosted customer site (a single dynamic app, not one Lovable
+project per customer -- see CLAUDE.md session addendum) fetches client-side
+to render a business's page.
+
+Mounted into the main app via create_app().include_router(site_router) in
+webstaffr/workers/angel/router.py, same pattern as intake_router.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+
+from fastapi import APIRouter, HTTPException, Request
+
+from .intake import IntakeRepository
+from .site_data import build_public_site_data
+from .tenant import InvalidTenantError, Tenant
+
+site_router = APIRouter()
+
+
+def _get_connection(request: Request) -> sqlite3.Connection:
+    conn = sqlite3.connect(request.app.state.db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+@site_router.get("/sites/{tenant_id}")
+def get_site_data(tenant_id: str, request: Request) -> dict:
+    """Public site content for one tenant. 404 if the tenant_id is invalid
+    or no intake submission exists yet -- either way, there's no site to
+    render, and the caller shouldn't be able to tell which case it was
+    (no information leakage about which tenant_ids are valid)."""
+    try:
+        Tenant(tenant_id=tenant_id)
+    except InvalidTenantError as exc:
+        raise HTTPException(status_code=404, detail="No site found for this tenant") from exc
+
+    conn = _get_connection(request)
+    try:
+        submission = IntakeRepository(conn).load_latest_for_tenant(tenant_id)
+    finally:
+        conn.close()
+
+    if submission is None:
+        raise HTTPException(status_code=404, detail="No site found for this tenant")
+
+    return build_public_site_data(submission)

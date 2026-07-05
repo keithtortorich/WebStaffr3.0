@@ -295,6 +295,35 @@ class IntakeRepository:
         if row is None:
             return None
 
+        return self._row_to_submission(row)
+
+    def load_latest_for_tenant(self, tenant_id: str) -> Optional[IntakeSubmission]:
+        """Most recent submission for a tenant -- what the public site-data
+        endpoint (GET /sites/{tenant_id}) renders from. A tenant re-submitting
+        intake (e.g. updating their info) should show up here without needing
+        a separate "current submission" pointer column."""
+        try:
+            row = self._conn.execute(
+                """
+                SELECT * FROM intake_submissions
+                WHERE tenant_id = ?
+                ORDER BY submission_id DESC
+                LIMIT 1
+                """,
+                (tenant_id,),
+            ).fetchone()
+        except sqlite3.Error as exc:
+            raise StorageError(
+                f"Failed to load latest intake submission for tenant {tenant_id!r}: {exc}"
+            ) from exc
+
+        if row is None:
+            return None
+
+        return self._row_to_submission(row)
+
+    @staticmethod
+    def _row_to_submission(row: sqlite3.Row) -> IntakeSubmission:
         data = dict(row)
         data["services"] = json.loads(data.pop("services_json"))
         data.pop("created_at", None)

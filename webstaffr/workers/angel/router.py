@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from ...db import connect, migrate
 from ...intake_router import intake_router
+from ...site_router import site_router
 from ...tenant import InvalidTenantError, Tenant
 from .angel import Angel
 from .ghl import GHLClient
@@ -79,22 +80,24 @@ class BookAppointmentResponse(BaseModel):
 SUPPORTED_EVENT_TYPES = {"website_lead", "missed_call"}
 
 # Paths called directly from browser JS running on an arbitrary origin --
-# the customer-site widget (angel-widget.js) for /chat, and the intake
-# form (wherever it's hosted -- the WebStaffr marketing site today, a
+# the customer-site widget (angel-widget.js) for /chat, the intake form
+# (wherever it's hosted -- the WebStaffr marketing site today, a
 # Lovable-generated page later) for /intake and its read-only presets
-# endpoints. These are the only paths that need CORS headers. /book and
-# /webhooks/ghl are not meant to be readable by browser JS running on an
-# arbitrary third-party origin -- /webhooks/ghl is only ever called
-# server-to-server by GoHighLevel (CORS is a browser-enforced restriction
-# and has no bearing on that caller), and /book has no browser caller
-# today. Scoping here means adding a browser-facing caller for /book later
-# requires a deliberate change to this set, not an accidental side effect
-# of the app-wide wildcard that used to be here.
+# endpoints, and the Lovable multi-tenant site's client-side fetch of its
+# own content for /sites/{tenant_id}. These are the only paths that need
+# CORS headers. /book and /webhooks/ghl are not meant to be readable by
+# browser JS running on an arbitrary third-party origin -- /webhooks/ghl
+# is only ever called server-to-server by GoHighLevel (CORS is a
+# browser-enforced restriction and has no bearing on that caller), and
+# /book has no browser caller today. Scoping here means adding a
+# browser-facing caller for /book later requires a deliberate change to
+# this set, not an accidental side effect of the app-wide wildcard that
+# used to be here.
 _CORS_SCOPED_PATHS = {"/chat", "/intake"}
 # Prefixes rather than exact paths, for routes with a path parameter
-# (/intake/presets/{industry}) -- exact-match membership in
-# _CORS_SCOPED_PATHS can't match a dynamic segment.
-_CORS_SCOPED_PREFIXES = ("/intake/presets",)
+# (/intake/presets/{industry}, /sites/{tenant_id}) -- exact-match
+# membership in _CORS_SCOPED_PATHS can't match a dynamic segment.
+_CORS_SCOPED_PREFIXES = ("/intake/presets", "/sites/")
 
 
 class ScopedCORSMiddleware(BaseHTTPMiddleware):
@@ -148,8 +151,9 @@ def create_app(
         yield
 
     app = FastAPI(title="WebStaffr Angel Router", lifespan=lifespan)
-    app.state.db_path = db_path  # read by intake_router's _get_connection()
+    app.state.db_path = db_path  # read by intake_router's/site_router's _get_connection()
     app.include_router(intake_router)
+    app.include_router(site_router)
 
     # The widget is embedded on customer websites (arbitrary origins), so
     # /chat needs CORS enabled; the intake form (wherever it's hosted) needs
