@@ -38,7 +38,8 @@ Everything else — pushes, deployments, new dependencies, architecture or data-
 - Migrated from `WebStaffr-clean`: engine, persistence, Angel worker, tests (54/54 passing), health check (HEALTHY).
 - No auth, CI/CD, hosting, or production deployment decision made yet.
 - No real credentials configured for GoHighLevel or Grok — `GrokVoiceBackend`/`GoHighLevelClient` remain `[Unverified]` against live accounts until exercised with real keys.
-- Next: intake flow and Lovable-generated customer site, then wiring the Angel widget into it.
+- The pytest-dependency and CORS-scoping fixes below were committed and pushed to `origin/main` (`3ca933b`) after founder approval.
+- Backend intake endpoint now exists (`POST /intake`, see 2026-07-05 addendum below). Still outstanding: the actual Lovable-generated customer site and wiring the Angel widget into it.
 
 ### Session Addendum (2026-07-05) — state reconciliation
 
@@ -54,3 +55,26 @@ Re-verified every claim above against the actual code and a real test/health-che
 - Added `requirements-dev.txt` (pinned `pytest==9.1.1`) and updated README's local-dev steps to install it alongside `requirements.txt`. This is a new dependency, approved explicitly in-session per the Self-Approval Scope rule above.
 - Replaced the app-wide `CORSMiddleware` in `router.py` with `ScopedCORSMiddleware`, a small custom middleware restricted to `_CORS_SCOPED_PATHS = {"/chat"}`. `/book` and `/webhooks/ghl` no longer carry `Access-Control-Allow-Origin` headers. Added 4 regression tests (`TestCORSScoping`, plus a no-CORS check on `/health`) that assert this directly rather than relying on code review alone. Full suite re-run after the change: 58/58 passing (54 original + 4 new), health check still HEALTHY.
 - Not yet done: committing and pushing these changes — pending explicit approval for the push step per CLAUDE.md's Self-Approval Scope (local commit is reversible/in-session; push to GitHub is not self-approvable).
+
+**Update:** committed and pushed by founder same day. `origin/main` now at `3ca933b`. Verified directly (fetch + `git ls-remote`), not assumed.
+
+### Session Addendum (2026-07-05) — intake flow (first slice of MVP scope)
+
+Built the backend half of "intake" per the MVP scope above: `POST /intake`, a new `intake_submissions` table (migration `0003`), and `GET /intake/presets[/{industry}]`. Site generation itself is still out of scope here (Lovable's job per this doc's MVP Scope section).
+
+**Provenance, not reinvention:** the field set (9 sections, ~35 fields) and required-field list are ported from the legacy `webstaff`/SiteSpin repo's proven intake form (`/Users/doc/Claude/Projects/WebStaffr/intake/intake.html`, read directly via Desktop Commander, not assumed from memory). That repo is a *different, older* codebase than this one — not `WebStaffr-clean` — reached only because the founder referenced two terms ("perfect site protocol," "malleable per-trade intake form") that turned out to be real, verifiable concepts there:
+
+- **"Perfect-Site-Checklist"**: a data-integrity standard applied to that repo's site generator on 2026-07-04 — never fabricate reviews, testimonials, ratings, or credentials; render only real contractor-submitted data; omit a section rather than invent filler. Caught two real bugs there (a lead-capture form posting to a dead route; three hardcoded fake testimonials on every generated site). The full checklist document itself was never located — it's referenced as having lived in Google Drive, unresolved even in that repo's own status notes. What's real and reusable is the principle and its code-level effects, which is what got carried forward here.
+- **Per-trade "malleable" intake**: correction to an assumption made mid-session — the old form does *not* use a different field schema per trade. All ~35 fields are the same for every industry. What varies per trade is presentation only: placeholder/example copy (`TRADE_HINTS`) and which field-service-management software options are offered (`INDUSTRY_SOFTWARE`, e.g. ServiceTitan/Jobber for HVAC vs. Vagaro/Mindbody for salons). Ported as-is into `webstaffr/trade_presets.py`.
+
+**What was built:**
+- `webstaffr/migrations/0003_intake_submissions.sql` — tenant-scoped table, same migration pattern as `0001`/`0002`.
+- `webstaffr/intake.py` — `IntakeSubmission` dataclass, `IntakeRepository` (mirrors `booking.py`'s pattern), `generate_tenant_id()` (business-name slug + random suffix, since two businesses can share a name), `validate_intake_payload()` (required fields, plan enum, rating range).
+- `webstaffr/trade_presets.py` — static per-industry hint/software config, presentation-layer only, no schema impact.
+- `webstaffr/intake_router.py` — `POST /intake`, `GET /intake/presets`, `GET /intake/presets/{industry}`, mounted into the existing app via `include_router()` in `workers/angel/router.py` (kept that file's own router Angel-specific, per its existing docstring).
+- CORS: `/intake` and `/intake/presets*` added to `ScopedCORSMiddleware`'s scoped paths (same reasoning as `/chat` — the intake form runs on an arbitrary origin), `Access-Control-Allow-Methods` extended to include `GET`.
+- `tests/test_intake.py` — 15 new tests (submission success, tenant-id generation/uniqueness, full-row persistence, validation failures don't persist partial data, preset lookup/alias/fallback, CORS scoping).
+
+**Verified this session:** full suite 73/73 passing (58 prior + 15 new), health check still HEALTHY. Manually exercised `/intake` and `/intake/presets` with `TestClient` before writing formal tests, confirming request/response shapes matched the design before locking them into assertions.
+
+**Not yet done:** commit + push (same sandbox `.git/index.lock` limitation as the prior addendum — needs to run from the founder's own terminal), and the actual site-generation step (Lovable) that consumes this intake data.

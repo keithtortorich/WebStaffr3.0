@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 from ...db import connect, migrate
+from ...intake_router import intake_router
 from ...tenant import InvalidTenantError, Tenant
 from .angel import Angel
 from .ghl import GHLClient
@@ -77,27 +78,36 @@ class BookAppointmentResponse(BaseModel):
 
 SUPPORTED_EVENT_TYPES = {"website_lead", "missed_call"}
 
-# Paths the widget (angel-widget.js) calls directly from an arbitrary
-# customer-site origin, and therefore the only paths that need CORS headers
-# at all. /book and /webhooks/ghl are not meant to be readable by browser JS
-# running on an arbitrary third-party origin -- /webhooks/ghl is only ever
-# called server-to-server by GoHighLevel (CORS is a browser-enforced
-# restriction and has no bearing on that caller), and /book has no browser
-# caller today. Scoping here means adding a browser-facing caller for /book
-# later requires a deliberate change to this set, not an accidental side
-# effect of the app-wide wildcard that used to be here.
-_CORS_SCOPED_PATHS = {"/chat"}
+# Paths called directly from browser JS running on an arbitrary origin --
+# the customer-site widget (angel-widget.js) for /chat, and the intake
+# form (wherever it's hosted -- the WebStaffr marketing site today, a
+# Lovable-generated page later) for /intake and its read-only presets
+# endpoints. These are the only paths that need CORS headers. /book and
+# /webhooks/ghl are not meant to be readable by browser JS running on an
+# arbitrary third-party origin -- /webhooks/ghl is only ever called
+# server-to-server by GoHighLevel (CORS is a browser-enforced restriction
+# and has no bearing on that caller), and /book has no browser caller
+# today. Scoping here means adding a browser-facing caller for /book later
+# requires a deliberate change to this set, not an accidental side effect
+# of the app-wide wildcard that used to be here.
+_CORS_SCOPED_PATHS = {"/chat", "/intake"}
+# Prefixes rather than exact paths, for routes with a path parameter
+# (/intake/presets/{industry}) -- exact-match membership in
+# _CORS_SCOPED_PATHS can't match a dynamic segment.
+_CORS_SCOPED_PREFIXES = ("/intake/presets",)
 
 
 class ScopedCORSMiddleware(BaseHTTPMiddleware):
-    """CORS restricted to `_CORS_SCOPED_PATHS`, replacing FastAPI's
-    CORSMiddleware which is app-wide only. See the CLAUDE.md session
-    addendum (2026-07-05) for why this replaced a wildcard `allow_origins`
-    that covered /book and /webhooks/ghl as an unintended side effect."""
+    """CORS restricted to `_CORS_SCOPED_PATHS`/`_CORS_SCOPED_PREFIXES`,
+    replacing FastAPI's CORSMiddleware which is app-wide only. See the
+    CLAUDE.md session addendum (2026-07-05) for why this replaced a
+    wildcard `allow_origins` that covered /book and /webhooks/ghl as an
+    unintended side effect."""
 
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
-        scoped = request.url.path in _CORS_SCOPED_PATHS
+        path = request.url.path
+        scoped = path in _CORS_SCOPED_PATHS or path.startswith(_CORS_SCOPED_PREFIXES)
 
         if scoped and request.method == "OPTIONS":
             response = Response(status_code=200)
@@ -106,7 +116,7 @@ class ScopedCORSMiddleware(BaseHTTPMiddleware):
 
         if scoped and origin:
             response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "*"
 
         return response
@@ -138,9 +148,12 @@ def create_app(
         yield
 
     app = FastAPI(title="WebStaffr Angel Router", lifespan=lifespan)
+    app.state.db_path = db_path  # read by intake_router's _get_connection()
+    app.include_router(intake_router)
 
     # The widget is embedded on customer websites (arbitrary origins), so
-    # /chat needs CORS enabled. Actually scoped to /chat only -- see
+    # /chat needs CORS enabled; the intake form (wherever it's hosted) needs
+    # the same for /intake. Scoped to just those paths -- see
     # ScopedCORSMiddleware above -- rather than the app-wide wildcard this
     # used to be (which also covered /book and /webhooks/ghl as an
     # unintended side effect; see CLAUDE.md session addendum 2026-07-05).
