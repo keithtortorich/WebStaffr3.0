@@ -39,3 +39,18 @@ Everything else — pushes, deployments, new dependencies, architecture or data-
 - No auth, CI/CD, hosting, or production deployment decision made yet.
 - No real credentials configured for GoHighLevel or Grok — `GrokVoiceBackend`/`GoHighLevelClient` remain `[Unverified]` against live accounts until exercised with real keys.
 - Next: intake flow and Lovable-generated customer site, then wiring the Angel widget into it.
+
+### Session Addendum (2026-07-05) — state reconciliation
+
+Re-verified every claim above against the actual code and a real test/health-check run (not just re-reading the docs):
+
+- **Confirmed accurate, re-verified this session**: 54/54 tests pass, health check reports HEALTHY, `GoHighLevelClient`/`GrokVoiceBackend` implementations match the `[Unverified]`-against-live-account caveats in `CREDENTIALS.md` (code itself marks `update_appointment`/`cancel_appointment` as unverified), no `.env` or DB file committed, no hardcoded secrets found, `angel_prompt.md` and the Angel widget (`webstaffr/workers/angel/widget/angel-widget.js`) both exist and are real functional implementations (not stubs) — voice is honestly disabled in the UI rather than faked.
+- **Confirmed accurate**: no intake-flow or Lovable-site code exists in this repo yet — the "Next" item above is still genuinely outstanding, not already started and forgotten.
+- **Git**: local `main` and `origin/main` verified identical at `77da37a` (content-checked via `git ls-remote`, not just ahead/behind count).
+- **New finding, not previously documented**: `requirements.txt` does not list `pytest`. Following the README's own local-dev steps verbatim (`pip install -r requirements.txt` then `pytest tests/`) fails with `ModuleNotFoundError` on a genuinely fresh environment unless `pytest` happens to already be installed globally. Either add `pytest` to `requirements.txt` (or a `requirements-dev.txt`) or update the README to call it out as a separate install step.
+- **New finding, not previously documented**: `router.py`'s `CORSMiddleware` uses `allow_origins=["*"]` app-wide (see code comment at the call site acknowledging this is broader than intended "in spirit"). This currently makes `/book` and `/webhooks/ghl` — not just `/chat` — callable cross-origin from any site. Worth an explicit decision before any production exposure: scope CORS to `/chat` only (e.g. per-route middleware or a dependency-based origin check) or confirm wildcard is intentional for all three endpoints.
+
+**Both findings above fixed same session (2026-07-05), approved directly by founder:**
+- Added `requirements-dev.txt` (pinned `pytest==9.1.1`) and updated README's local-dev steps to install it alongside `requirements.txt`. This is a new dependency, approved explicitly in-session per the Self-Approval Scope rule above.
+- Replaced the app-wide `CORSMiddleware` in `router.py` with `ScopedCORSMiddleware`, a small custom middleware restricted to `_CORS_SCOPED_PATHS = {"/chat"}`. `/book` and `/webhooks/ghl` no longer carry `Access-Control-Allow-Origin` headers. Added 4 regression tests (`TestCORSScoping`, plus a no-CORS check on `/health`) that assert this directly rather than relying on code review alone. Full suite re-run after the change: 58/58 passing (54 original + 4 new), health check still HEALTHY.
+- Not yet done: committing and pushing these changes — pending explicit approval for the push step per CLAUDE.md's Self-Approval Scope (local commit is reversible/in-session; push to GitHub is not self-approvable).

@@ -40,6 +40,42 @@ class TestHealthEndpoint(RouterTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), {"status": "ok"})
 
+    def test_health_has_no_cors_header(self):
+        resp = self.client.get("/health", headers={"Origin": "https://evil.example.com"})
+        self.assertNotIn("access-control-allow-origin", resp.headers)
+
+
+class TestCORSScoping(RouterTestCase):
+    """CORS is scoped to /chat only -- angel-widget.js is the only caller
+    that needs cross-origin access from an arbitrary customer-site origin.
+    /book and /webhooks/ghl must NOT carry CORS headers: see the CLAUDE.md
+    session addendum (2026-07-05) documenting the app-wide wildcard this
+    replaced."""
+
+    def test_chat_has_cors_header_for_arbitrary_origin(self):
+        resp = self.client.post(
+            "/chat",
+            json={"tenant_id": "acme", "message": "Hi"},
+            headers={"Origin": "https://some-customer-site.example.com"},
+        )
+        self.assertEqual(resp.headers.get("access-control-allow-origin"), "*")
+
+    def test_book_has_no_cors_header(self):
+        resp = self.client.post(
+            "/book",
+            json={"tenant_id": "acme", "contact_name": "Jane", "starts_at": "2026-08-01T15:00:00Z"},
+            headers={"Origin": "https://evil.example.com"},
+        )
+        self.assertNotIn("access-control-allow-origin", resp.headers)
+
+    def test_webhooks_ghl_has_no_cors_header(self):
+        resp = self.client.post(
+            "/webhooks/ghl",
+            json={"tenant_id": "acme", "event_type": "missed_call"},
+            headers={"Origin": "https://evil.example.com"},
+        )
+        self.assertNotIn("access-control-allow-origin", resp.headers)
+
 
 class TestChatEndpoint(RouterTestCase):
     def test_chat_returns_a_reply(self):

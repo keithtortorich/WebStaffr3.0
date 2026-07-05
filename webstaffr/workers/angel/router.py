@@ -13,8 +13,8 @@ import sqlite3
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 from ...db import connect, migrate
@@ -77,6 +77,40 @@ class BookAppointmentResponse(BaseModel):
 
 SUPPORTED_EVENT_TYPES = {"website_lead", "missed_call"}
 
+# Paths the widget (angel-widget.js) calls directly from an arbitrary
+# customer-site origin, and therefore the only paths that need CORS headers
+# at all. /book and /webhooks/ghl are not meant to be readable by browser JS
+# running on an arbitrary third-party origin -- /webhooks/ghl is only ever
+# called server-to-server by GoHighLevel (CORS is a browser-enforced
+# restriction and has no bearing on that caller), and /book has no browser
+# caller today. Scoping here means adding a browser-facing caller for /book
+# later requires a deliberate change to this set, not an accidental side
+# effect of the app-wide wildcard that used to be here.
+_CORS_SCOPED_PATHS = {"/chat"}
+
+
+class ScopedCORSMiddleware(BaseHTTPMiddleware):
+    """CORS restricted to `_CORS_SCOPED_PATHS`, replacing FastAPI's
+    CORSMiddleware which is app-wide only. See the CLAUDE.md session
+    addendum (2026-07-05) for why this replaced a wildcard `allow_origins`
+    that covered /book and /webhooks/ghl as an unintended side effect."""
+
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        scoped = request.url.path in _CORS_SCOPED_PATHS
+
+        if scoped and request.method == "OPTIONS":
+            response = Response(status_code=200)
+        else:
+            response = await call_next(request)
+
+        if scoped and origin:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+
+        return response
+
 
 def create_app(
     db_path: str = "webstaffr.db",
@@ -105,16 +139,12 @@ def create_app(
 
     app = FastAPI(title="WebStaffr Angel Router", lifespan=lifespan)
 
-    # The widget is embedded on customer websites (arbitrary origins), so it
-    # needs CORS enabled for the endpoints it calls. Scoped to /chat only in
-    # spirit -- FastAPI's CORS middleware is app-wide, so this is revisited
-    # if/when an endpoint here should NOT be publicly callable cross-origin.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["POST", "GET"],
-        allow_headers=["*"],
-    )
+    # The widget is embedded on customer websites (arbitrary origins), so
+    # /chat needs CORS enabled. Actually scoped to /chat only -- see
+    # ScopedCORSMiddleware above -- rather than the app-wide wildcard this
+    # used to be (which also covered /book and /webhooks/ghl as an
+    # unintended side effect; see CLAUDE.md session addendum 2026-07-05).
+    app.add_middleware(ScopedCORSMiddleware)
 
     def get_connection() -> sqlite3.Connection:
         conn = sqlite3.connect(db_path)

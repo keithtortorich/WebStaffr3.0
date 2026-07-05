@@ -8,10 +8,12 @@ here; customer site generation is delegated to Lovable.
 
 ```
 python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
+./.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 ./.venv/bin/python -m pytest tests/
 ./.venv/bin/python scripts/health_check.py
 ```
+
+`requirements-dev.txt` is test-only (currently just `pytest`) -- not needed to run the service itself.
 
 Run the Angel service locally:
 
