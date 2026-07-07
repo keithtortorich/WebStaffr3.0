@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from .db import get_connection
+from .db import DB_ERRORS, get_connection
 from .intake import (
     IntakeRepository,
     IntakeSubmission,
@@ -102,8 +102,13 @@ def _get_connection(request: Request):
     app.state) rather than importing a module-level default -- keeps this
     router testable against whatever database a given app instance uses.
     Backend (SQLite vs Postgres) is chosen by db.get_connection() based on
-    DATABASE_URL -- this router doesn't need to know which one it got."""
-    return get_connection(request.app.state.db_path)
+    DATABASE_URL -- this router doesn't need to know which one it got.
+    Raises HTTPException(503) on a DB-layer failure instead of letting a
+    raw psycopg2/sqlite3 exception propagate to the client."""
+    try:
+        return get_connection(request.app.state.db_path)
+    except DB_ERRORS as exc:
+        raise HTTPException(status_code=503, detail="Intake temporarily unavailable -- please try again shortly") from exc
 
 
 @intake_router.post("/intake", response_model=IntakeResponse)

@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
-from ...db import connect, get_connection as _db_get_connection, migrate
+from ...db import DB_ERRORS, connect, get_connection as _db_get_connection, migrate, using_postgres
 from ...intake_router import intake_router
 from ...site_router import site_router
 from ...tenant import InvalidTenantError, Tenant
@@ -145,8 +145,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        with connect(db_path) as conn:
-            migrate(conn)
+        # Under Postgres, migrate() is a documented no-op (schema is managed
+        # out-of-band via Supabase migrations) -- so skip opening a
+        # connection at all rather than making the whole app's cold start
+        # (including DB-independent routes like /health) depend on the
+        # database being reachable. A transient outage on the Postgres side
+        # should degrade DB-touching routes, not take down the entire app.
+        if not using_postgres():
+            with connect(db_path) as conn:
+                migrate(conn)
         yield
 
     app = FastAPI(title="WebStaffr Angel Router", lifespan=lifespan)
@@ -165,8 +172,13 @@ def create_app(
     def get_connection():
         """Backend (SQLite vs Postgres) is chosen by db.get_connection()
         based on DATABASE_URL -- everything downstream of this factory
-        doesn't need to know which one it got."""
-        return _db_get_connection(db_path)
+        doesn't need to know which one it got. Raises HTTPException(503) on
+        a DB-layer failure instead of letting a raw psycopg2/sqlite3
+        exception propagate to the client."""
+        try:
+            return _db_get_connection(db_path)
+        except DB_ERRORS as exc:
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable") from exc
 
     @app.get("/health")
     def health() -> dict:
@@ -301,9 +313,13 @@ def _ghl_client_from_env() -> Optional[GHLClient]:
     return None
 
 
-# Default app instance for `uvicorn webstaffr.workers.angel.router:app`.
+# Default app instance for `uvicorn webstaffr.workers.angel.router:app`
+# (local dev) and for the Vercel entrypoint at /index.py (deployed).
 # db_path and backends are picked up from environment at process start --
-# see Dockerfile (WEBSTAFFR_DB_PATH) and docker-compose.yml (credentials).
+# set WEBSTAFFR_DB_PATH, DATABASE_URL, GHL_API_KEY/GHL_LOCATION_ID, etc. as
+# Vercel project environment variables (see CLAUDE.md, "hosting decision +
+# Supabase Postgres backend" addendum). No Dockerfile/docker-compose in this
+# repo -- deployment is Vercel, not containers.
 import os as _os  # noqa: E402
 
 app = create_app(

@@ -76,6 +76,17 @@ def _database_url() -> Optional[str]:
     return os.environ.get("DATABASE_URL") or None
 
 
+def using_postgres() -> bool:
+    """True if DATABASE_URL is set (the deployed backend). Public wrapper
+    around _database_url() for callers outside this module that only need
+    the yes/no answer -- e.g. the ASGI lifespan skipping its startup
+    connect()/migrate() call entirely under Postgres, since migrate() is
+    always a no-op there (see migrate()'s docstring below). That avoids
+    making the whole app's cold start -- including DB-independent routes
+    like /health -- depend on the database being reachable."""
+    return _database_url() is not None
+
+
 # ---------------------------------------------------------------------------
 # Postgres compatibility layer -- see module docstring for why this exists.
 # ---------------------------------------------------------------------------

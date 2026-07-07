@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from .db import get_connection
+from .db import DB_ERRORS, get_connection
 from .intake import IntakeRepository
 from .site_data import build_public_site_data
 from .tenant import InvalidTenantError, Tenant
@@ -21,8 +21,14 @@ site_router = APIRouter()
 
 def _get_connection(request: Request):
     """Backend (SQLite vs Postgres) is chosen by db.get_connection() based
-    on DATABASE_URL -- this router doesn't need to know which one it got."""
-    return get_connection(request.app.state.db_path)
+    on DATABASE_URL -- this router doesn't need to know which one it got.
+    Raises HTTPException(503) on a DB-layer failure (e.g. Postgres
+    unreachable) instead of letting a raw psycopg2/sqlite3 exception -- and
+    the connection details in its message -- propagate to the client."""
+    try:
+        return get_connection(request.app.state.db_path)
+    except DB_ERRORS as exc:
+        raise HTTPException(status_code=503, detail="Site data temporarily unavailable") from exc
 
 
 @site_router.get("/sites/{tenant_id}")
