@@ -1,0 +1,8 @@
+# Points Vercel's Python/FastAPI runtime at the real app instance instead
+# of requiring a root-level app.py/index.py -- see
+# https://vercel.com/docs/frameworks/backend/fastapi. Dependencies still
+# come from requirements.txt (unchanged); this file exists solely for the
+# [tool.vercel] entrypoint override.
+
+[tool.vercel]
+entrypoint = "webstaffr.workers.angel.router:app"
