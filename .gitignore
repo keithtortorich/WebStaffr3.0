@@ -163,3 +163,6 @@ venv/
 .env
 .vercel
 .env*
+
+# Skill artifact copy, not backend code (already installed as Cowork skill)
+marketing-director-gtm/

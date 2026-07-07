@@ -40,3 +40,5 @@ Last updated: 2026-07-08.
 - Lovable "Site Weaver": project ID `27e51275-323a-4156-a7f9-9bc41c7bf36c`
 - Latest commit pushed: `efc2ad3` on `origin/main`
 - Full session history and rationale: `CLAUDE.md` (session addenda, chronological, most recent at bottom)
+- Findings from the original (pre-`WebStaffr-clean`) repo and Google Drive, re-examined 2026-07-08 for anything useful not carried forward (brand/positioning docs, locked pricing tiers, beachhead niche, unmigrated agent code, CAC/churn/fundraising inconsistencies across Drive, AOKAI lead): `LEGACY_AUDIT.md`. Assessment only — nothing in it has been applied to this repo.
+- Business-strategy cross-check (pricing, niche/expansion sequence, CAC/churn reconciliation, and the voice-vs-chat positioning gap — the product is chat-only today, no phone voice built): `STRATEGY.md`. Reference only — no code or pricing changes made from it.
