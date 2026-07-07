@@ -118,8 +118,11 @@ class GoHighLevelClient:
         )
 
     def update_appointment(self, appointment_id: str, starts_at: str, notes: str) -> dict:
-        # [Unverified] endpoint/payload shape -- no live GHL account to
-        # confirm against; same treatment as the model name in voice.py.
+        # Endpoint path confirmed against HighLevel's live API docs
+        # (marketplace.gohighlevel.com/docs, checked 2026-07-08):
+        # PUT /calendars/events/appointments/:eventId. Payload shape
+        # (startTime/notes) is still [Unverified] against a live account --
+        # the docs page doesn't render request-body fields in fetched text.
         return self._request(
             "PUT",
             f"/calendars/events/appointments/{appointment_id}",
@@ -130,5 +133,10 @@ class GoHighLevelClient:
         )
 
     def cancel_appointment(self, appointment_id: str) -> dict:
-        # [Unverified] endpoint -- no live GHL account to confirm against.
-        return self._request("DELETE", f"/calendars/events/appointments/{appointment_id}")
+        # Bug fix (2026-07-08): this previously called
+        # DELETE /calendars/events/appointments/{id}, which does not
+        # exist. HighLevel's live docs confirm the real endpoint is
+        # DELETE /calendars/events/{eventId} -- no "/appointments"
+        # segment, unlike create/update. Confirmed against docs;
+        # still [Unverified] against a live account/response shape.
+        return self._request("DELETE", f"/calendars/events/{appointment_id}")

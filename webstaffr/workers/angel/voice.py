@@ -55,10 +55,18 @@ class GrokVoiceBackend:
     realtime audio streaming remains separate future work if/when Angel
     needs actual voice rather than text chat.
 
-    The model name (`"grok-beta"`) and endpoint below have not been
-    verified against a live xAI account or current API docs -- there is
-    no live account available to test against in this environment.
-    Treat as [Unverified] until exercised with a real GROK_API_KEY.
+    Model name and endpoint verified against xAI's live docs
+    (docs.x.ai, checked 2026-07-08): "grok-beta" was retired as of
+    xAI's May 15, 2026 model deprecation and now silently auto-redirects
+    to grok-4.3 at standard grok-4.3 pricing. Updated to request
+    "grok-4.3" explicitly rather than relying on that redirect. The
+    `/v1/chat/completions` endpoint itself is still live but is now
+    documented by xAI as a "legacy" surface -- new features land on
+    their Responses API (`/v1/responses`) first. Kept on chat/completions
+    here since it satisfies this class's stateless request/response
+    contract and migrating to Responses is a separate, larger change.
+    Still [Unverified] against a live GROK_API_KEY -- confirmed against
+    current docs, not yet exercised against a real account.
     """
 
     API_URL = "https://api.x.ai/v1/chat/completions"
@@ -93,7 +101,7 @@ class GrokVoiceBackend:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "grok-beta",
+                    "model": "grok-4.3",
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": message},

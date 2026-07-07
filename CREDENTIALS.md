@@ -62,6 +62,13 @@ uvicorn webstaffr.workers.angel.router:app --reload
   real API. No test in this suite makes a real network call.
 - Run the full suite: `python -m pytest tests/` (or `python -m unittest discover -s tests`)
 - Run the self-healing health check: `python scripts/health_check.py`
+- Once you've set real `GROK_API_KEY` / `GHL_API_KEY`+`GHL_LOCATION_ID`, verify each
+  against the live vendor API with `scripts/test_grok_connection.py` and
+  `scripts/test_ghl_connection.py` -- run these yourself in your own terminal
+  (not through Claude), same reasoning as `scripts/test_db_connection.py`:
+  the key is masked via `getpass` and never appears in any chat/session.
+  Both are read-only/no-side-effect calls and throwaway diagnostics -- safe
+  to delete once you've confirmed the real credentials work.
 
 ## Production Notes
 

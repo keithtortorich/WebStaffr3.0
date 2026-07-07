@@ -2,7 +2,7 @@
 
 Working task list for the intake → generated customer site → Angel widget MVP flow (see `CLAUDE.md` for full operational history/decisions, `PROJECT.md` for product vision). Kept here so state survives across chat sessions.
 
-Last updated: 2026-07-07.
+Last updated: 2026-07-08.
 
 ## Blocked (external, not actionable right now)
 
@@ -22,11 +22,16 @@ Last updated: 2026-07-07.
 - #20 — Fixed a real, unrelated bug: `requirements-dev.txt` pinned `pytest==9.1.1`, which doesn't exist on PyPI, silently breaking the README's documented fresh-install steps. Repinned to real `8.4.2`. Also discovered no `.venv` actually existed locally despite prior "81/81 passing" claims — built one for real and reverified.
 - #21 — Fixed a real production bug found via `get_runtime_errors`: the ASGI lifespan handler was opening a DB connection at cold start just to call `migrate()` (a documented no-op under Postgres), meaning the Supabase outage was crashing the *entire* app — including `/health` — not just DB-touching routes. Fixed to skip that connection under Postgres. Also fixed 5 route handlers that let raw DB exceptions (including the Supavisor pooler hostname) leak to clients instead of returning a clean 503. **Verified live**: `/health` now returns `200` on the real Vercel deployment right now, while the Supabase incident is still open.
 
+## Blocked (on founder's own decision, not external)
+
+- **GHL signup + `GHL_API_KEY`/`GHL_LOCATION_ID`.** Founder deliberately hasn't signed up yet — it's a 30-day trial and he wants to control when that clock starts. GoHighLevel signup page is open in a browser tab, waiting. Do not proceed until he says he's ready.
+
 ## Not yet started
 
-- Wire real credentials for `GrokVoiceBackend` / `GoHighLevelClient` and verify against live accounts (currently `[Unverified]` — implementations exist and are honest about degrading gracefully with no credentials, but untested against real GHL/Grok).
-- Once Supabase clears: confirm `/sites/{tenant_id}` returns real data end-to-end (Vercel backend → Lovable frontend → Angel widget) with an actual intake submission.
-- Delete the two throwaway diagnostic scripts in `scripts/` once the Supabase connection is confirmed stable.
+- **`GROK_API_KEY`: done.** Real key generated at `console.x.ai` (2026-07-08), set as a Sensitive Vercel env var (Production + Preview), production redeployed to pick it up. Founder still needs to add xAI API credits himself (skipped that purchase step — Claude doesn't complete purchases) before real calls will succeed. End-to-end verification via `/chat` is still blocked on the Supabase incident below (DB unreachable → 503 before the request ever reaches Grok).
+- Once Supabase clears: confirm `/sites/{tenant_id}` returns real data end-to-end (Vercel backend → Lovable frontend → Angel widget) with an actual intake submission, and verify `GROK_API_KEY` works via a real `/chat` call.
+- Once founder starts the GHL trial: create the Private Integration Token + note `GHL_LOCATION_ID`, wire both into Vercel the same way as `GROK_API_KEY`.
+- Delete the throwaway diagnostic scripts in `scripts/` once the Supabase connection and both credentials are confirmed stable.
 - No auth, CI/CD, or production-readiness decision made yet beyond what's documented in `CLAUDE.md`.
 
 ## Reference

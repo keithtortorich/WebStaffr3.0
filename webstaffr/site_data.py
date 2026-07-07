@@ -53,7 +53,6 @@ def build_public_site_data(submission: IntakeSubmission) -> dict:
         "emergency_service",
         "gbp_url",
         "google_review_link",
-        "competitors",
         "tone",
         "pricing_shown",
         "promos",

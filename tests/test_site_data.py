@@ -24,6 +24,7 @@ _INTERNAL_FIELDS = (
     "fsm_system",
     "booking_system",
     "has_gbp",
+    "competitors",
 )
 
 
