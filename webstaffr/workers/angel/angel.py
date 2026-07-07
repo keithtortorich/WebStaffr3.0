@@ -10,9 +10,8 @@ file. This is the same explicit-dependency pattern as WorkflowExecutor.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from ...tenant import Tenant
 from .booking import Appointment, AppointmentRepository
@@ -37,7 +36,7 @@ class Angel:
     def __init__(
         self,
         tenant: Tenant,
-        conn: sqlite3.Connection,
+        conn: Any,
         voice_backend: Optional[VoiceBackend] = None,
         ghl_client: Optional[GHLClient] = None,
         business_name: str = "your business",

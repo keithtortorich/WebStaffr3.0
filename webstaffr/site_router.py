@@ -9,10 +9,9 @@ webstaffr/workers/angel/router.py, same pattern as intake_router.
 
 from __future__ import annotations
 
-import sqlite3
-
 from fastapi import APIRouter, HTTPException, Request
 
+from .db import get_connection
 from .intake import IntakeRepository
 from .site_data import build_public_site_data
 from .tenant import InvalidTenantError, Tenant
@@ -20,11 +19,10 @@ from .tenant import InvalidTenantError, Tenant
 site_router = APIRouter()
 
 
-def _get_connection(request: Request) -> sqlite3.Connection:
-    conn = sqlite3.connect(request.app.state.db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+def _get_connection(request: Request):
+    """Backend (SQLite vs Postgres) is chosen by db.get_connection() based
+    on DATABASE_URL -- this router doesn't need to know which one it got."""
+    return get_connection(request.app.state.db_path)
 
 
 @site_router.get("/sites/{tenant_id}")

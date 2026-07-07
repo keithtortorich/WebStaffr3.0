@@ -8,12 +8,12 @@ Angel-specific per its existing docstring.
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from .db import get_connection
 from .intake import (
     IntakeRepository,
     IntakeSubmission,
@@ -97,14 +97,13 @@ class IntakeResponse(BaseModel):
     plan: str
 
 
-def _get_connection(request: Request) -> sqlite3.Connection:
+def _get_connection(request: Request):
     """Reads the db_path the app was created with (create_app stores it on
     app.state) rather than importing a module-level default -- keeps this
-    router testable against whatever database a given app instance uses."""
-    conn = sqlite3.connect(request.app.state.db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    router testable against whatever database a given app instance uses.
+    Backend (SQLite vs Postgres) is chosen by db.get_connection() based on
+    DATABASE_URL -- this router doesn't need to know which one it got."""
+    return get_connection(request.app.state.db_path)
 
 
 @intake_router.post("/intake", response_model=IntakeResponse)

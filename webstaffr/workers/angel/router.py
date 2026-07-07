@@ -9,7 +9,6 @@ own logic.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -17,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
-from ...db import connect, migrate
+from ...db import connect, get_connection as _db_get_connection, migrate
 from ...intake_router import intake_router
 from ...site_router import site_router
 from ...tenant import InvalidTenantError, Tenant
@@ -163,11 +162,11 @@ def create_app(
     # unintended side effect; see CLAUDE.md session addendum 2026-07-05).
     app.add_middleware(ScopedCORSMiddleware)
 
-    def get_connection() -> sqlite3.Connection:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+    def get_connection():
+        """Backend (SQLite vs Postgres) is chosen by db.get_connection()
+        based on DATABASE_URL -- everything downstream of this factory
+        doesn't need to know which one it got."""
+        return _db_get_connection(db_path)
 
     @app.get("/health")
     def health() -> dict:

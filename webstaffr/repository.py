@@ -4,26 +4,25 @@ Every method takes tenant_id (or a tenant-scoped object) explicitly and
 filters by it -- never a global, unscoped query. This mirrors the
 tenant-isolation requirement at the persistence layer, not just in memory.
 
-Repositories operate on an already-open sqlite3.Connection (see db.connect /
-db.migrate) rather than owning connection lifecycle themselves, so callers
-control transaction boundaries and tests can use a shared in-memory
-connection.
+Repositories operate on an already-open connection (SQLite or Postgres --
+see db.get_connection / db.connect / db.migrate) rather than owning
+connection lifecycle themselves, so callers control transaction boundaries
+and tests can use a shared in-memory connection.
 """
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from .db import StorageError
+from .db import DB_ERRORS, StorageError
 from .execution import ExecutionRecord
 from .tenant import Tenant
 from .workflow import StepRegistry, WorkflowDefinition
 
 
-def _ensure_tenant(conn: sqlite3.Connection, tenant_id: str) -> None:
+def _ensure_tenant(conn: Any, tenant_id: str) -> None:
     """Upsert the tenant row so FK constraints on dependent tables are
     satisfied without callers having to manage tenant rows themselves."""
     conn.execute("INSERT OR IGNORE INTO tenants (tenant_id) VALUES (?)", (tenant_id,))
@@ -34,7 +33,7 @@ class WorkflowRepository:
     callables) is never stored -- only step names, in order. Loading
     requires a StepRegistry to resolve names back to real functions."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: Any) -> None:
         self._conn = conn
 
     def save(self, workflow: WorkflowDefinition) -> None:
@@ -54,7 +53,7 @@ class WorkflowRepository:
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to save workflow {workflow.workflow_id!r}: {exc}") from exc
 
     def load(self, tenant_id: str, workflow_id: str, registry: StepRegistry) -> Optional[WorkflowDefinition]:
@@ -71,7 +70,7 @@ class WorkflowRepository:
                 """,
                 (tenant_id, workflow_id),
             ).fetchone()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to load workflow {workflow_id!r}: {exc}") from exc
 
         if row is None:
@@ -91,7 +90,7 @@ class WorkflowRepository:
                 "SELECT workflow_id FROM workflow_definitions WHERE tenant_id = ? ORDER BY workflow_id",
                 (tenant_id,),
             ).fetchall()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to list workflows for tenant {tenant_id!r}: {exc}") from exc
         return [row["workflow_id"] for row in rows]
 
@@ -101,7 +100,7 @@ class ExecutionRepository:
     append-only history -- save() always inserts a new row, never updates
     an existing one."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: Any) -> None:
         self._conn = conn
 
     def save(self, record: ExecutionRecord) -> int:
@@ -123,7 +122,7 @@ class ExecutionRepository:
                     json.dumps([s.to_dict() for s in record.steps]),
                 ),
             )
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(
                 f"Failed to save execution record for workflow {record.workflow_id!r}: {exc}"
             ) from exc
@@ -142,7 +141,7 @@ class ExecutionRepository:
                 """,
                 (tenant_id, execution_id),
             ).fetchone()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to load execution record {execution_id}: {exc}") from exc
 
         if row is None:
@@ -176,6 +175,6 @@ class ExecutionRepository:
                     "SELECT execution_id FROM execution_records WHERE tenant_id = ? ORDER BY execution_id",
                     (tenant_id,),
                 ).fetchall()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to list executions for tenant {tenant_id!r}: {exc}") from exc
         return [row["execution_id"] for row in rows]

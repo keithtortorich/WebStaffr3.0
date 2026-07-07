@@ -5,8 +5,8 @@ Field set and required-field validation are ported from the legacy webstaff
 repo's proven 9-section intake form (intake/intake.html), not reinvented --
 see the CLAUDE.md session addendum for provenance. Persistence follows the
 same repository pattern as booking.py: a plain dataclass plus a repository
-class operating on an already-open sqlite3.Connection, tenant-scoped
-throughout.
+class operating on an already-open connection (SQLite or Postgres --
+see db.get_connection), tenant-scoped throughout.
 
 Perfect-site principle carried forward from the legacy repo's
 Perfect-Site-Checklist audit (2026-07-04): this module only ever stores
@@ -20,13 +20,12 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from .db import StorageError
+from .db import DB_ERRORS, StorageError
 
 REQUIRED_FIELDS = (
     "biz_name",
@@ -214,7 +213,7 @@ class IntakeRepository:
     AppointmentRepository: caller-owned connection, tenant_id always part
     of every query."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: Any) -> None:
         self._conn = conn
 
     def save(self, submission: IntakeSubmission) -> int:
@@ -276,7 +275,7 @@ class IntakeRepository:
                 f"INSERT INTO intake_submissions ({columns}) VALUES ({placeholders})",
                 tuple(values[col] for col in _COLUMNS),
             )
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(
                 f"Failed to save intake submission for tenant {submission.tenant_id!r}: {exc}"
             ) from exc
@@ -289,7 +288,7 @@ class IntakeRepository:
                 "SELECT * FROM intake_submissions WHERE tenant_id = ? AND submission_id = ?",
                 (tenant_id, submission_id),
             ).fetchone()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to load intake submission {submission_id}: {exc}") from exc
 
         if row is None:
@@ -312,7 +311,7 @@ class IntakeRepository:
                 """,
                 (tenant_id,),
             ).fetchone()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(
                 f"Failed to load latest intake submission for tenant {tenant_id!r}: {exc}"
             ) from exc
@@ -323,7 +322,7 @@ class IntakeRepository:
         return self._row_to_submission(row)
 
     @staticmethod
-    def _row_to_submission(row: sqlite3.Row) -> IntakeSubmission:
+    def _row_to_submission(row: Any) -> IntakeSubmission:
         data = dict(row)
         data["services"] = json.loads(data.pop("services_json"))
         data.pop("created_at", None)
@@ -335,6 +334,6 @@ class IntakeRepository:
                 "SELECT submission_id FROM intake_submissions WHERE tenant_id = ? ORDER BY submission_id",
                 (tenant_id,),
             ).fetchall()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to list intake submissions for tenant {tenant_id!r}: {exc}") from exc
         return [row["submission_id"] for row in rows]

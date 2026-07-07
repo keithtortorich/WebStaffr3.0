@@ -1,17 +1,17 @@
-"""Appointment booking -- tenant-scoped, persisted via SQLite (appointments
-table, migration 0002). Separate from GHL sync: an appointment is recorded
-locally first (source of truth for this system), then optionally synced
-to GHL -- a GHL failure never prevents the local booking from succeeding.
+"""Appointment booking -- tenant-scoped, persisted via SQLite or Postgres
+(appointments table, migration 0002). Separate from GHL sync: an
+appointment is recorded locally first (source of truth for this system),
+then optionally synced to GHL -- a GHL failure never prevents the local
+booking from succeeding.
 """
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from ...db import StorageError
+from ...db import DB_ERRORS, StorageError
 
 
 @dataclass
@@ -28,7 +28,7 @@ class Appointment:
 
 
 class AppointmentRepository:
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: Any) -> None:
         self._conn = conn
 
     def save(self, appt: Appointment) -> int:
@@ -55,7 +55,7 @@ class AppointmentRepository:
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(
                 f"Failed to save appointment for tenant {appt.tenant_id!r}: {exc}"
             ) from exc
@@ -68,7 +68,7 @@ class AppointmentRepository:
                 "UPDATE appointments SET ghl_synced = 1 WHERE tenant_id = ? AND appointment_id = ?",
                 (tenant_id, appointment_id),
             )
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to mark appointment {appointment_id} synced: {exc}") from exc
 
     def list_for_tenant(self, tenant_id: str) -> list:
@@ -77,6 +77,6 @@ class AppointmentRepository:
                 "SELECT appointment_id FROM appointments WHERE tenant_id = ? ORDER BY appointment_id",
                 (tenant_id,),
             ).fetchall()
-        except sqlite3.Error as exc:
+        except DB_ERRORS as exc:
             raise StorageError(f"Failed to list appointments for tenant {tenant_id!r}: {exc}") from exc
         return [row["appointment_id"] for row in rows]
