@@ -34,6 +34,36 @@
   live GHL account.
 - **Security**: never commit. Same as above.
 
+### 3. `RETELL_WEBHOOK_SECRET` (for Retell AI voice/telephony webhooks)
+- **Purpose**: verifies that `/retell/webhook` and `/retell/function-call`
+  requests actually came from Retell before trusting the payload.
+- **How to get**: issued by Retell when you register a webhook in their
+  dashboard.
+- **Behavior**:
+  - Set -> `RetellSignatureVerifier` is used (HMAC-SHA256 over the raw
+    request body).
+  - Unset -> falls back to `NullRetellWebhookVerifier` (accepts everything
+    -- safe default for tests and local dev, never intended for a real
+    deployment).
+- **Status**: `[Unverified]` -- implemented from Retell's publicly
+  documented webhook-signing convention, not yet exercised against a real
+  Retell-signed request. Confirm the exact signature header name/format in
+  Retell's dashboard/docs before relying on this in production; same
+  caveat GHL's endpoint paths carried before they were checked against
+  live docs on 2026-07-08 (see `webstaffr/workers/angel/retell.py`).
+- **Tenant resolution**: each tenant's Retell agent/phone number must be
+  configured in the Retell dashboard with `metadata: {"tenant_id": "..."}`
+  -- Retell echoes this back on every webhook/function-call payload for
+  that call. There is no phone-number-to-tenant lookup table in this repo
+  (a real schema change, not done); this is a first-slice design for a
+  handful of pilot tenants configured by hand.
+- **Not required to receive webhooks**: `RETELL_API_KEY` is not needed for
+  `/retell/webhook` or `/retell/function-call` to work -- it would only be
+  needed for this app to call Retell's own management API (e.g.
+  programmatically creating/updating an agent), which nothing in this repo
+  does yet.
+- **Security**: never commit. Same as above.
+
 ## Local Development Setup
 
 ```bash
@@ -42,6 +72,7 @@ cat > .env << 'EOF'
 GROK_API_KEY=your_xai_key_here
 GHL_API_KEY=your_ghl_key_here
 GHL_LOCATION_ID=your_location_id_here
+RETELL_WEBHOOK_SECRET=your_retell_webhook_signing_secret_here
 WEBSTAFFR_DB_PATH=./webstaffr.db
 EOF
 

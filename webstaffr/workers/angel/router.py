@@ -22,6 +22,8 @@ from ...site_router import site_router
 from ...tenant import InvalidTenantError, Tenant
 from .angel import Angel
 from .ghl import GHLClient
+from .retell import RetellWebhookVerifier
+from .retell_router import create_retell_router
 from .voice import VoiceBackend
 
 logger = logging.getLogger("webstaffr.angel.router")
@@ -128,6 +130,7 @@ def create_app(
     db_path: str = "webstaffr.db",
     voice_backend: Optional[VoiceBackend] = None,
     ghl_client: Optional[GHLClient] = None,
+    retell_verifier: Optional[RetellWebhookVerifier] = None,
 ) -> FastAPI:
     """Factory rather than a module-level app instance, so tests (and
     Docker, and any future multi-tenant deployment shape) can construct an
@@ -160,6 +163,17 @@ def create_app(
     app.state.db_path = db_path  # read by intake_router's/site_router's _get_connection()
     app.include_router(intake_router)
     app.include_router(site_router)
+    # /retell/* is server-to-server only (Retell calling this app, not a
+    # browser) -- intentionally not added to ScopedCORSMiddleware's paths,
+    # same reasoning as /book and /webhooks/ghl.
+    app.include_router(
+        create_retell_router(
+            db_path=db_path,
+            voice_backend=voice_backend,
+            ghl_client=ghl_client,
+            verifier=retell_verifier,
+        )
+    )
 
     # The widget is embedded on customer websites (arbitrary origins), so
     # /chat needs CORS enabled; the intake form (wherever it's hosted) needs
@@ -326,4 +340,5 @@ app = create_app(
     db_path=_os.environ.get("WEBSTAFFR_DB_PATH", "webstaffr.db"),
     voice_backend=_backend_from_env(),
     ghl_client=_ghl_client_from_env(),
+    retell_verifier=None,  # resolved from RETELL_WEBHOOK_SECRET inside create_retell_router()
 )
