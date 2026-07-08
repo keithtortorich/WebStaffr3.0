@@ -18,14 +18,14 @@ The real, built MVP flow is: contractor intake form → auto-generated tenant we
 
 **If real phone voice becomes a goal, it's a from-scratch platform decision**, not a matter of finishing what's already there. Current market picture (verified via web search, 2026):
 
-| Platform | Best for | Latency | Cost shape |
-|---|---|---|---|
-| Retell AI | Best all-around for production call automation; built-in call simulation, broad CRM/telephony coverage | ~580–620ms | Mid, predictable |
-| Vapi | Developer teams building custom pipelines; most model/pipeline flexibility | ~500–600ms optimized | $0.05/min orchestration alone; full stack can run $10K–13K/mo at volume |
-| Bland AI | Cheapest per-minute at scale; developer-controlled outbound | ~800ms (highest of the four) | Lowest at volume |
-| xAI Realtime Voice Agent API | Deep function-calling/tool integration, same vendor as the existing chat backend | Not independently benchmarked | $0.05/min ($3/hr), tool calls billed separately; beta-launched for high-volume production July 2026 |
+| Platform | Best for | Latency | Cost shape | Hosting fit |
+|---|---|---|---|---|
+| Retell AI | Best all-around for production call automation; built-in call simulation, broad CRM/telephony coverage | ~580–620ms | Mid, predictable (~$0.13–0.31/min all-in) | Hosts the persistent call session itself — this app only needs short HTTP webhooks. Fits current Vercel serverless deployment with no new infrastructure. |
+| Vapi | Developer teams building custom pipelines; most model/pipeline flexibility | ~500–600ms optimized | $0.05/min orchestration alone; full stack commonly $0.15–0.40/min real-world, can run $10K–13K/mo at volume | Same as Retell (hosts the session), but requires bringing your own separate telephony vendor (Twilio/Telnyx/etc.) on top — one more vendor relationship. |
+| Bland AI | Cheapest per-minute at scale; developer-controlled outbound | ~800ms (highest of the four) | Lowest at volume | Not independently checked this pass. |
+| xAI Realtime Voice Agent API | Deep function-calling/tool integration, same vendor as the existing chat backend | Not independently benchmarked | $0.05/min ($3/hr) + ~$0.01/min for a provisioned number, tool calls billed separately | **Ruled out for now** (2026-07-08, confirmed against `docs.x.ai/.../voice-agent/sip`): requires *this app's own backend* to hold a live WebSocket open for the full duration of every call. The current backend is Vercel serverless functions, which don't support a persistent connection like this — using native Grok Voice would mean standing up a second, separate always-on service just to hold call sessions, on top of the existing deployment. |
 
-[Inference] For an inbound-receptionist use case (latency-sensitive — "we answer faster than a human" is the core pitch), Retell AI is the lower-risk default: built-in simulation lets you QA before ever pitching a client, and its latency beats Bland. The xAI Realtime option is attractive only because it's the same vendor already in use for chat — that's a convenience argument, not a performance one, and it's the least-benchmarked option here.
+[Inference, updated 2026-07-08] Retell AI is the current pick, not just the lower-risk default — the deciding factor turned out to be hosting fit, not latency or vendor convenience. xAI's own Voice Agent API is real and does support inbound PSTN calls, but the requirement to hold a persistent per-call connection in this app's own backend is incompatible with the current Vercel deployment without adding new infrastructure. Retell (and Vapi) absorb that job into their own infrastructure, which is what their higher per-minute rate is actually paying for. **Status as of this addendum: a first-draft Retell integration (webhook handling, signature verification, `book_appointment`/`escalate_to_human`/`get_availability` tool handlers, 21 tests) is built and pushed to `origin/main` (commit `1705b71`) — see `CLAUDE.md`'s matching session addendum. Not yet live: no real Retell account, agent, or phone number has been created, and nothing has been exercised against a live call.**
 
 ---
 

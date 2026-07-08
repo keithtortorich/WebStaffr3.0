@@ -22,15 +22,6 @@ Last updated: 2026-07-08.
 - #20 — Fixed a real, unrelated bug: `requirements-dev.txt` pinned `pytest==9.1.1`, which doesn't exist on PyPI, silently breaking the README's documented fresh-install steps. Repinned to real `8.4.2`. Also discovered no `.venv` actually existed locally despite prior "81/81 passing" claims — built one for real and reverified.
 - #21 — Fixed a real production bug found via `get_runtime_errors`: the ASGI lifespan handler was opening a DB connection at cold start just to call `migrate()` (a documented no-op under Postgres), meaning the Supabase outage was crashing the *entire* app — including `/health` — not just DB-touching routes. Fixed to skip that connection under Postgres. Also fixed 5 route handlers that let raw DB exceptions (including the Supavisor pooler hostname) leak to clients instead of returning a clean 503. **Verified live**: `/health` now returns `200` on the real Vercel deployment right now, while the Supabase incident is still open.
 
-## In Progress
-
-- **#22 — Retell AI voice/telephony integration (first draft, 2026-07-08).** Voice-vendor decision: Retell, not native Grok Voice Agent API (ruled out — would require this app to hold a persistent per-call WebSocket for the call's duration, incompatible with the current Vercel serverless deployment) and not Vapi (needs a separate telephony vendor on top, more integration/tuning effort than a solo-founder team has spare right now). Rationale detail: see chat history and `memory/project_webstaffr_voice_vendor_hosting_constraint.md`.
-  - Built: `webstaffr/workers/angel/retell.py` (webhook signature verification — `RetellSignatureVerifier` + `NullRetellWebhookVerifier`), `webstaffr/workers/angel/retell_router.py` (`POST /retell/webhook` for call lifecycle, `POST /retell/function-call` for `book_appointment`/`escalate_to_human`/`get_availability`), mounted into `create_app()` in `router.py`. Reuses `Angel`/`AppointmentRepository`/`get_connection()` directly — no SQLAlchemy, no new persistence pattern, no schema/migration change.
-  - `CREDENTIALS.md` updated: `RETELL_WEBHOOK_SECRET` documented. `RETELL_API_KEY` is *not* required just to receive webhooks.
-  - Tests: 21 new (`tests/test_retell_router.py`) — full suite now 102/102 passing, health check HEALTHY.
-  - **Not yet done / blocked on founder action:** no real Retell account, agent, or phone number exists yet. Tenant-to-phone-number resolution is via per-tenant `metadata: {"tenant_id": "..."}` configured by hand in Retell's dashboard (no DB table for this — deliberate, first-slice scope for a handful of pilot tenants). Signature header name/format and function-call payload shape are `[Unverified]` — implemented from Retell's public docs, not yet exercised against a live account. Voice-booked appointments currently save locally but do **not** sync to GHL (`sync_to_ghl=False` in the function-call handler) — a fresh phone caller has no existing GHL contact_id, and contact lookup/creation isn't built yet.
-  - Nothing pushed/deployed as of the code being written; see Reference section below for push status.
-
 ## Blocked (on founder's own decision, not external)
 
 - **GHL signup + `GHL_API_KEY`/`GHL_LOCATION_ID`.** Founder deliberately hasn't signed up yet — it's a 30-day trial and he wants to control when that clock starts. GoHighLevel signup page is open in a browser tab, waiting. Do not proceed until he says he's ready.
@@ -40,7 +31,6 @@ Last updated: 2026-07-08.
 - **`GROK_API_KEY`: done.** Real key generated at `console.x.ai` (2026-07-08), set as a Sensitive Vercel env var (Production + Preview), production redeployed to pick it up. Founder still needs to add xAI API credits himself (skipped that purchase step — Claude doesn't complete purchases) before real calls will succeed. End-to-end verification via `/chat` is still blocked on the Supabase incident below (DB unreachable → 503 before the request ever reaches Grok).
 - Once Supabase clears: confirm `/sites/{tenant_id}` returns real data end-to-end (Vercel backend → Lovable frontend → Angel widget) with an actual intake submission, and verify `GROK_API_KEY` works via a real `/chat` call.
 - Once founder starts the GHL trial: create the Private Integration Token + note `GHL_LOCATION_ID`, wire both into Vercel the same way as `GROK_API_KEY`.
-- Retell: register a real phone number/agent in Retell's dashboard, set `RETELL_WEBHOOK_SECRET` (local `.env` and/or Vercel), point the agent's webhook URLs at `/retell/webhook` and `/retell/function-call` on the deployed backend, then verify the signature format and payload shapes against a real test call before trusting this for a paying pilot account.
 - Delete the throwaway diagnostic scripts in `scripts/` once the Supabase connection and both credentials are confirmed stable.
 - No auth, CI/CD, or production-readiness decision made yet beyond what's documented in `CLAUDE.md`.
 
@@ -51,4 +41,3 @@ Last updated: 2026-07-08.
 - Latest commit pushed: `efc2ad3` on `origin/main`
 - Full session history and rationale: `CLAUDE.md` (session addenda, chronological, most recent at bottom)
 - Findings from the original (pre-`WebStaffr-clean`) repo and Google Drive, re-examined 2026-07-08 for anything useful not carried forward (brand/positioning docs, locked pricing tiers, beachhead niche, unmigrated agent code, CAC/churn/fundraising inconsistencies across Drive, AOKAI lead): `LEGACY_AUDIT.md`. Assessment only — nothing in it has been applied to this repo.
-- Business-strategy cross-check (pricing, niche/expansion sequence, CAC/churn reconciliation, and the voice-vs-chat positioning gap — the product is chat-only today, no phone voice built): `STRATEGY.md`. Reference only — no code or pricing changes made from it.
