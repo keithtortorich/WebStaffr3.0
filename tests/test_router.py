@@ -4,6 +4,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
+from webstaffr.workers.angel.api_auth import StaticSecretVerifier
 from webstaffr.workers.angel.ghl import NullGHLClient
 from webstaffr.workers.angel.router import create_app
 from webstaffr.workers.angel.voice import NullVoiceBackend
@@ -87,6 +88,43 @@ class TestChatEndpoint(RouterTestCase):
     def test_chat_rejects_invalid_tenant_id(self):
         resp = self.client.post("/chat", json={"tenant_id": "", "message": "Hi there"})
         self.assertEqual(resp.status_code, 400)
+
+    def test_chat_rejects_oversized_message(self):
+        """CODE_REVIEW.md (High, #2): ChatRequest.message previously had no
+        length limit at all -- a real, billed cost once GROK_API_KEY is
+        live. Pydantic's Field(max_length=...) rejects this before it ever
+        reaches Angel/Grok, hence 422 (validation error) rather than 400
+        (this router's own hand-rolled rejections)."""
+        resp = self.client.post(
+            "/chat",
+            json={"tenant_id": "acme", "message": "x" * 4001},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_chat_accepts_message_at_the_length_limit(self):
+        resp = self.client.post(
+            "/chat",
+            json={"tenant_id": "acme", "message": "x" * 4000},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_chat_is_rate_limited_per_tenant(self):
+        """CODE_REVIEW.md (High, #2): confirms the rate_limit.py wiring end
+        to end, not just the module in isolation (see test_rate_limit.py
+        for the boundary-condition coverage) -- uses the real
+        DEFAULT_MAX_REQUESTS_PER_WINDOW (30) rather than injecting a lower
+        one, since create_app() doesn't expose that as a param and
+        shouldn't need to for this to be testable."""
+        for _ in range(30):
+            resp = self.client.post("/chat", json={"tenant_id": "rate-limited-tenant", "message": "hi"})
+            self.assertEqual(resp.status_code, 200)
+
+        resp = self.client.post("/chat", json={"tenant_id": "rate-limited-tenant", "message": "hi"})
+        self.assertEqual(resp.status_code, 429)
+
+        # A different tenant is unaffected.
+        resp = self.client.post("/chat", json={"tenant_id": "another-tenant", "message": "hi"})
+        self.assertEqual(resp.status_code, 200)
 
 
 class TestBookEndpoint(RouterTestCase):
@@ -179,6 +217,138 @@ class TestGHLWebhookEndpoint(RouterTestCase):
             json={"tenant_id": "bad id with spaces", "event_type": "website_lead"},
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_oversized_message_is_rejected(self):
+        """Same CODE_REVIEW.md #2 finding as ChatRequest -- GHLWebhookEvent.message
+        was also unbounded."""
+        resp = self.client.post(
+            "/webhooks/ghl",
+            json={"tenant_id": "acme", "event_type": "website_lead", "message": "x" * 4001},
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_webhook_is_rate_limited_per_tenant(self):
+        """Same wiring as TestChatEndpoint.test_chat_is_rate_limited_per_tenant,
+        tracked separately from /chat's counter (different endpoint tag)."""
+        for _ in range(30):
+            resp = self.client.post(
+                "/webhooks/ghl", json={"tenant_id": "rate-limited-tenant", "event_type": "missed_call"}
+            )
+            self.assertEqual(resp.status_code, 200)
+
+        resp = self.client.post(
+            "/webhooks/ghl", json={"tenant_id": "rate-limited-tenant", "event_type": "missed_call"}
+        )
+        self.assertEqual(resp.status_code, 429)
+
+
+class TestBookApiKeyAuth(unittest.TestCase):
+    """Separate app instance (not RouterTestCase) so a real
+    StaticSecretVerifier can be injected via dependency injection -- same
+    approach test_retell_router.py uses for RetellSignatureVerifier. Covers
+    CODE_REVIEW.md's High finding: /book previously accepted any caller
+    that knew a tenant_id."""
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        app = create_app(
+            db_path=self.db_path,
+            voice_backend=NullVoiceBackend(),
+            ghl_client=NullGHLClient(),
+            book_api_verifier=StaticSecretVerifier("test-book-key"),
+        )
+        self._client_ctx = TestClient(app)
+        self.client = self._client_ctx.__enter__()
+
+    def tearDown(self):
+        self._client_ctx.__exit__(None, None, None)
+        os.remove(self.db_path)
+
+    def _payload(self):
+        return {"tenant_id": "acme", "contact_name": "Jane", "starts_at": "2026-08-01T15:00:00Z"}
+
+    def test_rejects_missing_api_key(self):
+        resp = self.client.post("/book", json=self._payload())
+        self.assertEqual(resp.status_code, 401)
+
+    def test_rejects_wrong_api_key(self):
+        resp = self.client.post("/book", json=self._payload(), headers={"X-API-Key": "wrong"})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_accepts_correct_api_key(self):
+        resp = self.client.post("/book", json=self._payload(), headers={"X-API-Key": "test-book-key"})
+        self.assertEqual(resp.status_code, 200)
+
+
+class TestGHLWebhookSecretAuth(unittest.TestCase):
+    """Same shape as TestBookApiKeyAuth, for /webhooks/ghl -- CODE_REVIEW.md's
+    other High finding: a forgeable webhook with no shared-secret check."""
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        app = create_app(
+            db_path=self.db_path,
+            voice_backend=NullVoiceBackend(),
+            ghl_client=NullGHLClient(),
+            ghl_webhook_verifier=StaticSecretVerifier("test-ghl-secret"),
+        )
+        self._client_ctx = TestClient(app)
+        self.client = self._client_ctx.__enter__()
+
+    def tearDown(self):
+        self._client_ctx.__exit__(None, None, None)
+        os.remove(self.db_path)
+
+    def _payload(self):
+        return {"tenant_id": "acme", "event_type": "missed_call"}
+
+    def test_rejects_missing_secret(self):
+        resp = self.client.post("/webhooks/ghl", json=self._payload())
+        self.assertEqual(resp.status_code, 401)
+
+    def test_rejects_wrong_secret(self):
+        resp = self.client.post("/webhooks/ghl", json=self._payload(), headers={"X-Webhook-Secret": "wrong"})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_accepts_correct_secret(self):
+        resp = self.client.post(
+            "/webhooks/ghl", json=self._payload(), headers={"X-Webhook-Secret": "test-ghl-secret"}
+        )
+        self.assertEqual(resp.status_code, 200)
+
+
+class TestBookAndWebhookAuthDefaultsToOpenWhenUnconfigured(RouterTestCase):
+    """RouterTestCase's default app passes no verifier and (per setUp,
+    below) runs with GHL_WEBHOOK_SECRET/BOOK_API_KEY cleared, so it
+    exercises the Null-verifier fall-through in api_auth.py -- confirms the
+    pre-existing TestBookEndpoint/TestGHLWebhookEndpoint tests above are
+    hitting the documented fails-open-until-configured path deliberately,
+    not accidentally passing due to test-environment env vars."""
+
+    def setUp(self):
+        self._old_ghl_secret = os.environ.pop("GHL_WEBHOOK_SECRET", None)
+        self._old_book_key = os.environ.pop("BOOK_API_KEY", None)
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        if self._old_ghl_secret is not None:
+            os.environ["GHL_WEBHOOK_SECRET"] = self._old_ghl_secret
+        if self._old_book_key is not None:
+            os.environ["BOOK_API_KEY"] = self._old_book_key
+
+    def test_book_works_without_api_key_header_when_unconfigured(self):
+        resp = self.client.post(
+            "/book",
+            json={"tenant_id": "acme", "contact_name": "Jane", "starts_at": "2026-08-01T15:00:00Z"},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_webhook_works_without_secret_header_when_unconfigured(self):
+        resp = self.client.post("/webhooks/ghl", json={"tenant_id": "acme", "event_type": "missed_call"})
+        self.assertEqual(resp.status_code, 200)
 
 
 if __name__ == "__main__":

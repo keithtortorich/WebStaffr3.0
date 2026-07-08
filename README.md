@@ -21,6 +21,6 @@ Run the Angel service locally:
 ./.venv/bin/uvicorn webstaffr.workers.angel.router:app --reload
 ```
 
-Optional environment variables (unset by default -- the service runs safely with no external calls when they're absent): `GROK_API_KEY`, `GHL_API_KEY`, `GHL_LOCATION_ID`, `RETELL_WEBHOOK_SECRET`, `WEBSTAFFR_DB_PATH`. See `CREDENTIALS.md` for what each does, how to get one, and current implementation status.
+Optional environment variables (unset by default -- the service runs safely with no external calls when they're absent): `GROK_API_KEY`, `GHL_API_KEY`, `GHL_LOCATION_ID`, `RETELL_WEBHOOK_SECRET`, `GHL_WEBHOOK_SECRET`, `BOOK_API_KEY`, `WEBSTAFFR_DB_PATH`. See `CREDENTIALS.md` for what each does, how to get one, and current implementation status.
 
 See `CLAUDE.md` for how this repository is governed and `PROJECT.md` for product vision and MVP scope.

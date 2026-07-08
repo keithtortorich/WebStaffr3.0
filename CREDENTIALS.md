@@ -64,6 +64,40 @@
   does yet.
 - **Security**: never commit. Same as above.
 
+### 4. `GHL_WEBHOOK_SECRET` (for `/webhooks/ghl` shared-secret auth)
+- **Purpose**: verifies that `/webhooks/ghl` requests actually came from
+  GoHighLevel before trusting the payload. Added 2026-07-08 after
+  `CODE_REVIEW.md` flagged this endpoint (High) as accepting `tenant_id` --
+  a public value, not a secret -- as its only scoping check.
+- **How to get**: not issued by GHL -- you choose this value yourself and
+  configure it as a custom header (`X-Webhook-Secret: <value>`) on
+  GoHighLevel's workflow Webhook action. GHL does not sign outgoing
+  webhooks itself, so a shared secret set on both sides is the mechanism.
+- **Behavior**:
+  - Set -> `StaticSecretVerifier` checks the `X-Webhook-Secret` header
+    (constant-time comparison); missing or mismatched -> `401`.
+  - Unset -> falls back to `NullSharedSecretVerifier` (accepts everything
+    -- same unconfigured-fails-open shape as `RETELL_WEBHOOK_SECRET`, safe
+    for tests and local dev, not intended for a real deployment).
+- **Status**: implemented and tested (`tests/test_router.py`); not yet
+  exercised against a real GHL workflow, since no live GHL account exists
+  yet (see `TASKS.md`).
+- **Security**: never commit. Same as above.
+
+### 5. `BOOK_API_KEY` (for `/book` shared-secret auth)
+- **Purpose**: verifies the caller of `/book` before letting it create an
+  appointment for an arbitrary `tenant_id`. Added same session/reason as
+  `GHL_WEBHOOK_SECRET` above.
+- **How to get**: not issued by anything external -- you choose this value
+  and give it to whatever calls `/book` directly (there is no live caller
+  today; this is for a future booking UI or server-side integration).
+- **Behavior**:
+  - Set -> `StaticSecretVerifier` checks the `X-API-Key` header; missing or
+    mismatched -> `401`.
+  - Unset -> falls back to `NullSharedSecretVerifier` (accepts everything).
+- **Status**: implemented and tested; no real caller configured yet.
+- **Security**: never commit. Same as above.
+
 ## Local Development Setup
 
 ```bash
@@ -73,6 +107,8 @@ GROK_API_KEY=your_xai_key_here
 GHL_API_KEY=your_ghl_key_here
 GHL_LOCATION_ID=your_location_id_here
 RETELL_WEBHOOK_SECRET=your_retell_webhook_signing_secret_here
+GHL_WEBHOOK_SECRET=choose_your_own_shared_secret_here
+BOOK_API_KEY=choose_your_own_api_key_here
 WEBSTAFFR_DB_PATH=./webstaffr.db
 EOF
 

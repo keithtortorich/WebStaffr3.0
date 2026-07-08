@@ -12,21 +12,35 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, Header, HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...db import DB_ERRORS, connect, get_connection as _db_get_connection, migrate, using_postgres
 from ...intake_router import intake_router
+from ...rate_limit import RateLimitExceeded, check_and_increment
 from ...site_router import site_router
 from ...tenant import InvalidTenantError, Tenant
 from .angel import Angel
+from .api_auth import SharedSecretVerifier, book_api_verifier_from_env, ghl_webhook_verifier_from_env
 from .ghl import GHLClient
 from .retell import RetellWebhookVerifier
 from .retell_router import create_retell_router
 from .voice import VoiceBackend
 
 logger = logging.getLogger("webstaffr.angel.router")
+
+
+# CODE_REVIEW.md (2026-07-08, High, action item #2): ChatRequest.message and
+# GHLWebhookEvent.message had no length limit -- capped only by
+# voice.py's max_tokens=500 on Grok's *output*, not the caller-supplied
+# input. With GROK_API_KEY live in production, an arbitrarily large message
+# is a real, billed xAI cost, not just a storage concern. 4000 chars is
+# generous for a real chat turn or webhook-sourced message (well beyond a
+# typical SMS/web-form message) while bounding the worst case; picked as a
+# round, conservative number, not derived from a specific token-cost
+# calculation -- adjust if real usage patterns say otherwise. [Inference]
+_MAX_MESSAGE_LENGTH = 4000
 
 
 class GHLWebhookEvent(BaseModel):
@@ -40,12 +54,12 @@ class GHLWebhookEvent(BaseModel):
     event_type: str  # e.g. "website_lead", "missed_call"
     contact_id: Optional[str] = None
     contact_name: Optional[str] = None
-    message: Optional[str] = None
+    message: Optional[str] = Field(default=None, max_length=_MAX_MESSAGE_LENGTH)
 
 
 class ChatRequest(BaseModel):
     tenant_id: str
-    message: str
+    message: str = Field(..., max_length=_MAX_MESSAGE_LENGTH)
     session_id: Optional[str] = None
 
 
@@ -131,6 +145,8 @@ def create_app(
     voice_backend: Optional[VoiceBackend] = None,
     ghl_client: Optional[GHLClient] = None,
     retell_verifier: Optional[RetellWebhookVerifier] = None,
+    ghl_webhook_verifier: Optional[SharedSecretVerifier] = None,
+    book_api_verifier: Optional[SharedSecretVerifier] = None,
 ) -> FastAPI:
     """Factory rather than a module-level app instance, so tests (and
     Docker, and any future multi-tenant deployment shape) can construct an
@@ -183,6 +199,16 @@ def create_app(
     # unintended side effect; see CLAUDE.md session addendum 2026-07-05).
     app.add_middleware(ScopedCORSMiddleware)
 
+    # CODE_REVIEW.md (2026-07-08, High): /book and /webhooks/ghl accepted
+    # tenant_id -- a public value -- as their only scoping credential, with
+    # no auth of any kind. Resolved the same way retell_verifier is above:
+    # an explicit verifier wins, otherwise fall back to env, otherwise (env
+    # var unset) a Null verifier that accepts everything -- same
+    # unconfigured-fails-open shape as Retell's own webhook verification,
+    # not a new pattern invented for this fix.
+    active_ghl_webhook_verifier = ghl_webhook_verifier or ghl_webhook_verifier_from_env()
+    active_book_api_verifier = book_api_verifier or book_api_verifier_from_env()
+
     def get_connection():
         """Backend (SQLite vs Postgres) is chosen by db.get_connection()
         based on DATABASE_URL -- everything downstream of this factory
@@ -201,7 +227,12 @@ def create_app(
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:
         """Used by angel-widget.js on generated customer sites -- a direct
-        chat turn, separate from the GHL webhook flow above."""
+        chat turn, separate from the GHL webhook flow above.
+
+        CODE_REVIEW.md (High, #2): rate-limited per tenant (see
+        rate_limit.py) since a real, billed xAI call happens here once
+        GROK_API_KEY is live -- an unauthenticated caller previously had no
+        ceiling on how many of those it could trigger."""
         try:
             tenant = Tenant(tenant_id=req.tenant_id)
         except InvalidTenantError as exc:
@@ -209,6 +240,12 @@ def create_app(
 
         conn = get_connection()
         try:
+            try:
+                check_and_increment(conn, req.tenant_id, "chat")
+            except RateLimitExceeded as exc:
+                conn.commit()  # keep the counter increment even though this request is rejected
+                raise HTTPException(status_code=429, detail="Rate limit exceeded, try again shortly.") from exc
+
             angel = Angel(tenant=tenant, conn=conn, voice_backend=voice_backend, ghl_client=ghl_client)
             reply = angel.respond(req.message)
             conn.commit()
@@ -219,12 +256,23 @@ def create_app(
         return ChatResponse(reply=reply)
 
     @app.post("/book", response_model=BookAppointmentResponse)
-    def book(req: BookAppointmentRequest) -> BookAppointmentResponse:
+    def book(
+        req: BookAppointmentRequest,
+        x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+    ) -> BookAppointmentResponse:
         """Direct booking endpoint -- same underlying Angel.book_appointment
         used by /chat and /webhooks/ghl, exposed for callers that don't go
         through a conversation turn. Untrusted input is validated the same
         way as the other endpoints: reject before touching the DB, not
-        after."""
+        after.
+
+        Requires X-API-Key matching BOOK_API_KEY when that env var is set
+        (see api_auth.py) -- unconfigured, this remains open, matching this
+        repo's existing Null-verifier convention until a real caller and
+        secret exist."""
+        if not active_book_api_verifier.verify(x_api_key):
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
         try:
             tenant = Tenant(tenant_id=req.tenant_id)
         except InvalidTenantError as exc:
@@ -265,7 +313,19 @@ def create_app(
         )
 
     @app.post("/webhooks/ghl")
-    def ghl_webhook(event: GHLWebhookEvent) -> dict:
+    def ghl_webhook(
+        event: GHLWebhookEvent,
+        x_webhook_secret: Optional[str] = Header(default=None, alias="X-Webhook-Secret"),
+    ) -> dict:
+        """Requires X-Webhook-Secret matching GHL_WEBHOOK_SECRET when that
+        env var is set (see api_auth.py) -- configure it as a custom header
+        on GoHighLevel's workflow Webhook action. Unconfigured, this remains
+        open, matching this repo's existing Null-verifier convention (same
+        shape as Retell's webhook verification before RETELL_WEBHOOK_SECRET
+        is set)."""
+        if not active_ghl_webhook_verifier.verify(x_webhook_secret):
+            raise HTTPException(status_code=401, detail="Invalid or missing webhook secret")
+
         try:
             tenant = Tenant(tenant_id=event.tenant_id)
         except InvalidTenantError as exc:
@@ -280,6 +340,12 @@ def create_app(
 
         conn = get_connection()
         try:
+            try:
+                check_and_increment(conn, event.tenant_id, "webhooks_ghl")
+            except RateLimitExceeded as exc:
+                conn.commit()  # keep the counter increment even though this request is rejected
+                raise HTTPException(status_code=429, detail="Rate limit exceeded, try again shortly.") from exc
+
             angel = Angel(
                 tenant=tenant,
                 conn=conn,
@@ -341,4 +407,6 @@ app = create_app(
     voice_backend=_backend_from_env(),
     ghl_client=_ghl_client_from_env(),
     retell_verifier=None,  # resolved from RETELL_WEBHOOK_SECRET inside create_retell_router()
+    ghl_webhook_verifier=None,  # resolved from GHL_WEBHOOK_SECRET inside create_app()
+    book_api_verifier=None,  # resolved from BOOK_API_KEY inside create_app()
 )
