@@ -271,3 +271,23 @@ Founder moved to `CODE_REVIEW.md`'s item #2 (High): no length limit on `ChatRequ
 **Verified this session:** full suite 121/121 passing (110 prior + 11 new), health check HEALTHY.
 
 **Not yet done:** committing/pushing (same self-approvable-local/not-self-approvable-push split as the prior addendum). `CODE_REVIEW.md`'s remaining items (#3 `license_number` decision, #4 RLS migration file, #5 Postgres-shim test coverage) are untouched. The rate-limit counter table has no automated pruning — flagged as a known, accepted gap in `rate_limit.py`'s own docstring, not hidden.
+
+**Update, same session:** both fixes above committed locally as `f3cd6b8` (single commit covering #1 and #2 together, since the working tree had both uncommitted at once by the time either was logged). Not pushed — pending approval.
+
+### Session Addendum (2026-07-08, later still) — third CODE_REVIEW.md fix: RLS migration committed as a real file
+
+Founder said "Continue" after the #1/#2 fixes; picked up the next actionable item myself (#3, `license_number`, is a pure founder decision with no code to write either way — left it for later; #5, Postgres-shim test coverage, is more involved; #4 was the natural next concrete step).
+
+**The real risk before starting:** `db.py`'s `migrate()` globs every `*.sql` file directly under `webstaffr/migrations/` (non-recursive) and runs each one against SQLite via `executescript()` for local dev and the entire test suite. `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` is Postgres-only syntax with no SQLite equivalent -- dropping the RLS migration in as a sibling of `0001`-`0003`/`0005` would have broken every local run and the full test suite the first time `migrate()` hit it. Caught this before writing the file, not after.
+
+**Fix:** committed it at `webstaffr/migrations/postgres_manual/0004_enable_rls_default_deny.sql` -- a subdirectory, which `Path.glob("*.sql")` does not descend into. Verified directly (`python3 -c "... Path('webstaffr/migrations').glob('*.sql')"`) that the subdirectory file doesn't appear in the glob results before trusting it, then ran the full suite (121/121, unchanged) to confirm.
+
+**Provenance handled honestly:** the Supabase MCP's `list_migrations` only returns version+name (`"0004_enable_rls_default_deny"`, applied `2026-07-07`), not the original SQL body -- there was never a way to retrieve the literal text an earlier session typed. So the committed file is a reconstruction, not a retrieval, and is labeled as such in the file's own header comment. Verified against live state before writing it, not assumed:
+- `pg_tables`/`pg_class`: `rowsecurity = true` on all 5 public tables (`tenants`, `workflow_definitions`, `execution_records`, `appointments`, `intake_submissions`).
+- `pg_policies`: zero rows -- confirms default-deny (RLS on, no policies), not RLS-on-with-gaps.
+- `get_advisors(security)`: only the 5 expected INFO-level "RLS Enabled No Policy" notices, no ERROR-level findings -- unchanged from the 2026-07-07 addendum's claim, re-verified rather than assumed still true.
+- Re-executed the exact 5 `ALTER TABLE` statements in the committed file directly against the live Supabase project (`ntbnenymyqiautaqhyhe`) as a verification step before committing -- `ENABLE ROW LEVEL SECURITY` is idempotent (a no-op on an already-enabled table), so this both confirmed the SQL is byte-correct and proved the file would actually work if ever needed for real (the whole point of committing it: reproducibility if the Supabase project is ever recreated or moved regions, which the repo's own addenda note as a live possibility given the `ap-south-1` incident).
+
+**Verified this session:** full suite still 121/121, health check HEALTHY, `get_advisors` re-checked clean after the verification `ALTER TABLE` runs (no policies were touched, nothing changed).
+
+**Not yet done:** committing/pushing was completed this session (see below); `CODE_REVIEW.md`'s remaining items (#3 `license_number` decision, #5 Postgres-shim test coverage) are untouched.
