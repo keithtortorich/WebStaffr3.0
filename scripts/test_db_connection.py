@@ -18,7 +18,15 @@ except ImportError:
     sys.exit(1)
 
 print("Paste your full DATABASE_URL connection string (input is hidden):")
-database_url = getpass.getpass("> ")
+database_url = getpass.getpass("> ").strip()
+
+if not (database_url.startswith("postgresql://") or database_url.startswith("postgres://")):
+    print(
+        "\nFAILED -- input doesn't start with 'postgresql://' or 'postgres://'. "
+        "That usually means the paste picked up an extra character or the wrong "
+        "clipboard contents. Copy just the connection string itself and try again."
+    )
+    sys.exit(1)
 
 try:
     conn = psycopg2.connect(database_url)
