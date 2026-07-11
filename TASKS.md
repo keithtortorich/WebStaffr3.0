@@ -46,7 +46,7 @@ Last updated: 2026-07-08.
 
 - Live backend: `https://web-staffr3-0-snowy.vercel.app` (`/health` confirmed working; DB-touching routes 503 until Supabase clears)
 - Lovable "Site Weaver": project ID `27e51275-323a-4156-a7f9-9bc41c7bf36c`
-- Latest commit pushed: `e0088f0` on `origin/main` (2026-07-08, verified via `git ls-remote`)
+- Latest commit pushed: `e487c42` on `origin/main` (2026-07-12, webstaffr-orchestrator Cowork/Hermes hybrid system — non-MVP tooling; verified via `git ls-remote`)
 - Full session history and rationale: `CLAUDE.md` (session addenda, chronological, most recent at bottom)
 - Findings from the original (pre-`WebStaffr-clean`) repo and Google Drive, re-examined 2026-07-08 for anything useful not carried forward (brand/positioning docs, locked pricing tiers, beachhead niche, unmigrated agent code, CAC/churn/fundraising inconsistencies across Drive, AOKAI lead): `LEGACY_AUDIT.md`. Assessment only — nothing in it has been applied to this repo.
 
