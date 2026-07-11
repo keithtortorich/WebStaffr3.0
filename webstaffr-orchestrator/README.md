@@ -1,5 +1,7 @@
 # webstaffr-orchestrator
 
+**SUPERSEDED (2026-07-12, same day as this file was built).** The founder asked to switch this system from Cowork+Hermes to native Claude Code. The replacement lives at `.claude/agents/` and `.claude/skills/` at the repo root — see `.claude/README.md` for the current architecture and why it's structured differently (project-scoped subagents instead of a `cowork.plugin.json` plugin). This directory is kept for history, not deleted — nothing here is loaded or used going forward. Do not extend or dispatch through this version; use `.claude/` instead.
+
 **Status:** Non-MVP tooling, built 2026-07-08 at the founder's explicit request (resolves the open scope question `WEBSTAFFR_HYBRID_STRATEGY.md` left flagged: "is this hybrid-tooling work worth prioritizing over the actual MVP blockers" — founder answered "build it now" when asked directly). Not required reading to continue MVP work; see `TASKS.md`.
 
 ## What this is
