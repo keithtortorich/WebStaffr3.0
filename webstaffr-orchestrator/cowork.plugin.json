@@ -1,0 +1,34 @@
+{
+  "name": "webstaffr-orchestrator",
+  "version": "1.0.0",
+  "displayName": "WebStaffr Orchestrator",
+  "description": "Claude Cowork's strategist/orchestrator role for WebStaffr 3.0: decomposes tasks, delegates execution to Hermes subagents, and reviews results before anything is committed or pushed. Non-MVP tooling — see README.md.",
+  "author": "Cap'n (Keith Tortorich) + Claude",
+  "license": "Proprietary",
+  "keywords": ["webstaffr", "orchestration", "hermes", "delegation", "subagents"],
+  "skills": [
+    { "name": "orchestrator-strategy", "path": "./skills/orchestrator-strategy.md" },
+    { "name": "subagent-dispatch", "path": "./skills/subagent-dispatch.md" },
+    { "name": "quality-review", "path": "./skills/quality-review.md" }
+  ],
+  "agents": [
+    { "name": "backend-specialist", "path": "./agents/backend-specialist.md" },
+    { "name": "integration-specialist", "path": "./agents/integration-specialist.md" },
+    { "name": "test-engineer", "path": "./agents/test-engineer.md" },
+    { "name": "documentation-writer", "path": "./agents/documentation-writer.md" }
+  ],
+  "dependencies": {
+    "required_capabilities": ["terminal", "file"],
+    "external": "Hermes agent gateway (~/.hermes) with subagent delegation enabled (config.yaml: subagents.orchestrator_enabled)",
+    "python": ">=3.9"
+  },
+  "settings": {
+    "mvp_scope_gate": "Every dispatched task must be checked against TASKS.md's shortest line to MVP (intake -> generated site -> Angel widget -> live voice) before delegation. Off-path work gets flagged to the founder, not silently started.",
+    "max_concurrent_delegations": 3,
+    "subagent_auto_approve": false,
+    "requires_explicit_founder_approval": ["git_push", "deploy", "new_dependency", "architecture_or_data_model_change"],
+    "self_approvable": ["reversible local file edits", "local git commit (not push)"],
+    "orient_from": ["TASKS.md", "CLAUDE.md (last dated addendum only)"],
+    "never": ["fabricate placeholder ratings/reviews/testimonials/credentials", "ask for secrets in chat", "assume state from memory instead of a live check this session"]
+  }
+}
