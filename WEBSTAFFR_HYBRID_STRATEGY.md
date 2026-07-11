@@ -16,14 +16,27 @@ continue MVP work — see `TASKS.md` for the actual next steps.
 Both should orient from `TASKS.md` + the last `CLAUDE.md` addendum, not
 from this document or from memory.
 
-## Model/cost note [Verified 2026-07-08]
+## Model/cost note [Verified 2026-07-12, supersedes the 2026-07-08 note below]
 
-Hermes' active model (`~/.hermes/config.yaml`) is
-`stepfun/step-3.7-flash:free` via the Nous provider — already free-tier,
-no switch needed today. See the `ensure-free-llm` skill
-(`~/.hermes/skills/devops/ensure-free-llm/`) for how to re-check this and
-for an optional local-Ollama upgrade path (removes network dependency
-entirely; not yet built or tested).
+`~/.hermes/config.yaml`'s active model is now `qwen2.5:14b` via a local
+Ollama server (`provider: custom`, `base_url: http://localhost:11434/v1`),
+confirmed live this session (`ollama list` shows the model pulled,
+`ollama --version`/`api/version` responds). This is the local-Ollama
+upgrade path the 2026-07-08 note below flagged as "not yet built or
+tested" — it's since been done (a backup file,
+`config.yaml.bak.pre_ollama_20260611_164746`, marks when the switch
+happened). Zero per-token cost, no network dependency on a hosted
+provider for Hermes' primary model. The `ensure-free-llm` skill's
+stepfun/Nous description is stale as of this finding — re-check that
+skill's own content before trusting it, same class of doc-drift this
+repo has hit before.
+
+## Prior note [Verified 2026-07-08, superseded above]
+
+Hermes' active model was `stepfun/step-3.7-flash:free` via the Nous
+provider — already free-tier, no switch needed at the time. See the
+`ensure-free-llm` skill (`~/.hermes/skills/devops/ensure-free-llm/`) for
+the original re-check procedure.
 
 ## Skills added this session
 

@@ -19,7 +19,7 @@
   ],
   "dependencies": {
     "required_capabilities": ["terminal", "file"],
-    "external": "Hermes agent gateway (~/.hermes) with subagent delegation enabled (config.yaml: subagents.orchestrator_enabled)",
+    "external": "Hermes agent gateway (~/.hermes) with subagent delegation enabled (config.yaml: delegation.orchestrator_enabled, confirmed true 2026-07-12 — key path corrected here, was previously miswritten as subagents.orchestrator_enabled)",
     "python": ">=3.9"
   },
   "settings": {
