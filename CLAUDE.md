@@ -301,3 +301,20 @@ Founder's decision on item #3, given in one word: "remove". `webstaffr/site_data
 **Verified this session:** full suite 121/121 passing (no new tests, the leak-check list just grew by one entry), health check HEALTHY, `scripts/onboarding_smoketest.py` re-run clean (12/12) since it specifically exercises this exact endpoint.
 
 **Not yet done:** `CODE_REVIEW.md`'s one remaining item, #5 (Postgres-shim test coverage), is next.
+
+### Session Addendum (2026-07-08, later still) — fifth and final CODE_REVIEW.md fix: Postgres shim test coverage
+
+Founder said "run test" after the license_number fix. Last item on `CODE_REVIEW.md`'s Prioritized Action List.
+
+**What was built:** `tests/test_db_pg_shim.py`, 15 tests against `_PGConnection` directly -- no real Postgres connection, no `DATABASE_URL`. A small fake object (`_FakeRawConnection`/`_FakeCursor`) shaped like psycopg2's connection/cursor surface (`.cursor(cursor_factory=...)`, `.execute()`, `.fetchone()`, `.commit()`/`.rollback()`/`.close()`) stands in for the real driver, and each test asserts on the *rewritten SQL text and params* `_PGConnection.execute()` hands to it -- the same thing a real psycopg2 cursor would receive. Covers, by class:
+- `TestInsertOrIgnoreRewrite` -- the generic `INSERT OR IGNORE INTO ...` → `... ON CONFLICT DO NOTHING` path every tenant-row upsert in the codebase uses.
+- `TestInsertOrReplaceWorkflowDefinitionsRewrite` -- the one hardcoded, non-generic translation (`WorkflowRepository.save()`'s `INSERT OR REPLACE`), confirms `ON CONFLICT (tenant_id, workflow_id) DO UPDATE SET ...` with `EXCLUDED.*` references, and that it requests `RealDictCursor` specifically (the thing that makes `row["col"]` access work the same as `sqlite3.Row` elsewhere).
+- `TestReturningAutoAppend` -- `RETURNING <pk>` appended for all three `_LASTROWID_PK` tables (iterated directly from that dict, not hardcoded separately, so it can't silently drift out of sync with `db.py`), a non-lastrowid table (`tenants`) getting no `RETURNING`, `cursor.lastrowid` correctly populated/`None` depending on whether a row comes back, and confirms a query that already contains `RETURNING` doesn't get a second one appended (the `"RETURNING" not in upper` guard).
+- `TestPragmaAndPlainQueries` -- `PRAGMA` is a true no-op (never reaches the raw cursor at all) and a plain `SELECT` only gets the `?`→`%s` rewrite.
+- `TestConnectionPassThrough` -- `commit`/`rollback`/`close`/`executescript` all delegate correctly, including that `executescript()` uses a plain cursor (no `RealDictCursor`), unlike `execute()`.
+
+**Why this matters, restated from CODE_REVIEW.md's own finding:** this was the single piece of dialect-translation code in the repo that had never been exercised by anything except human code review plus an incidental smoke test that fails at the TCP/auth layer before any of this logic runs (an unreachable `DATABASE_URL` never gets far enough to hit `_PGConnection.execute()` at all). These tests don't prove the shim works against a *real* Postgres server (still genuinely untested, a documented and accepted gap -- no local Postgres in this sandbox), but they do lock in the exact rewrite behavior as a regression test: a future change to this shim that breaks the `INSERT OR IGNORE`/`INSERT OR REPLACE`/`RETURNING` logic now fails a test immediately instead of only surfacing the first time it runs against production Supabase.
+
+**Verified this session:** `test_db_pg_shim.py` alone: 15/15 passing. Full suite: 136/136 (121 prior + 15 new). Health check HEALTHY. `scripts/onboarding_smoketest.py`: 12/12.
+
+**`CODE_REVIEW.md` is now fully worked through.** All 5 of its Prioritized Action List items are resolved: #1 auth (`f3cd6b8`), #2 message caps + rate limiting (also `f3cd6b8`), #3 `license_number` removed (`dce44f8`), #4 RLS migration file (`5bf1810`), #5 this addendum's commit. Everything is on local `main`, nothing pushed yet -- that, and whether `CODE_REVIEW.md` itself should be committed to version control, are both still open, founder-only decisions per this doc's Self-Approval Scope.
