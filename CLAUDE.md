@@ -291,3 +291,13 @@ Founder said "Continue" after the #1/#2 fixes; picked up the next actionable ite
 **Verified this session:** full suite still 121/121, health check HEALTHY, `get_advisors` re-checked clean after the verification `ALTER TABLE` runs (no policies were touched, nothing changed).
 
 **Not yet done:** committing/pushing was completed this session (see below); `CODE_REVIEW.md`'s remaining items (#3 `license_number` decision, #5 Postgres-shim test coverage) are untouched.
+
+### Session Addendum (2026-07-08, later still) — fourth CODE_REVIEW.md fix: license_number removed from public site data
+
+Founder's decision on item #3, given in one word: "remove". `webstaffr/site_data.py`'s `build_public_site_data()` no longer includes `license_number` in its output at all (previously it was in the always-included base dict, not even one of the optional fields). Docstring updated to record why and that this was a deliberate founder call, not a technical necessity -- contractor license numbers are commonly shown as a trust signal on real business sites, but Supabase's advisor had already flagged this column as sensitive at the DB layer, and the founder chose not to carry the application-layer exposure forward.
+
+`tests/test_site_data.py`'s `_INTERNAL_FIELDS` "must never leak" list gained `license_number`, same mechanism that caught the earlier `competitors` leak (2026-07-08 addendum, "onboarding smoke test" entry) -- locks this in as a regression test, not just a one-time edit.
+
+**Verified this session:** full suite 121/121 passing (no new tests, the leak-check list just grew by one entry), health check HEALTHY, `scripts/onboarding_smoketest.py` re-run clean (12/12) since it specifically exercises this exact endpoint.
+
+**Not yet done:** `CODE_REVIEW.md`'s one remaining item, #5 (Postgres-shim test coverage), is next.

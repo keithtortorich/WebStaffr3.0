@@ -15,6 +15,15 @@ a public website, and must never be exposed here:
     their NEW site.
   - has_logo / brand_colors / inspo_sites / brand_words / competitors /
     fsm_system / booking_system: internal design/ops inputs, not content.
+  - license_number: removed 2026-07-08 per CODE_REVIEW.md action item #3 and
+    a direct founder decision. Supabase's own advisor had already flagged
+    `intake_submissions.license_number` as a `sensitive_columns_exposed`
+    warning at the database layer (see CLAUDE.md's 2026-07-07 addendum);
+    this endpoint was nonetheless still publishing it at the application
+    layer regardless of that warning. Founder's call was to pull it rather
+    than keep it as a trust-signal display field -- not a technical
+    necessity, a deliberate choice, made explicitly rather than carried
+    forward implicitly.
 
 Perfect-site principle (see CLAUDE.md session addendum, ported from the
 legacy webstaff repo's Perfect-Site-Checklist): this module never invents
@@ -44,7 +53,6 @@ def build_public_site_data(submission: IntakeSubmission) -> dict:
         "tagline": submission.tagline,
         "differentiator": submission.differentiator,
         "services": submission.services,
-        "license_number": submission.license_number,
         "plan": submission.plan,
     }
 

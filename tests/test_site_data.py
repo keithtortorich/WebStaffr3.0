@@ -25,6 +25,7 @@ _INTERNAL_FIELDS = (
     "booking_system",
     "has_gbp",
     "competitors",
+    "license_number",
 )
 
 
