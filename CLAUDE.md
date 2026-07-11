@@ -22,7 +22,7 @@ Claude may execute a change without waiting for explicit approval only if ALL of
 - It introduces no architecture or data-model shift.
 - It introduces no new dependency.
 
-Everything else — pushes, deployments, new dependencies, architecture or data-model changes — requires explicit, direct approval in the session.
+Everything else — pushes, deployments, new dependencies, architecture or data-model changes — requires explicit approval in the session. Self-approval conditions apply to the *class* of work, not just the first instance in a session: once one reversible local-only change in a given class has been approved, the next analogous reversible local-only change in the same class doesn't need another fresh ask. Hard gates (push, deploy, new dependency, credential value changes, architecture/data-model changes) always need explicit approval regardless of what was approved earlier in the session.
 
 ## Security Baseline
 - No secrets, credentials, or tokens committed at any point, including in comments, examples, or fixtures. See `CREDENTIALS.md` for the real list of env vars and how they're used.
