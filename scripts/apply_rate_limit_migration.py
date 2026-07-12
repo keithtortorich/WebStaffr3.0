@@ -6,13 +6,11 @@ def _find_database_url():
     env = os.environ.get("DATABASE_URL")
     if env:
         return env
-    creds = Path(__file__).resolve().parent.parent / "CREDENTIALS.md"
-    if creds.exists():
-        for line in creds.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("DATABASE_URL="):
-                return line.split("=", 1)[1]
-    sys.exit("DATABASE_URL not found")
+    sys.exit(
+        "DATABASE_URL not set. Export it in your own shell before running this "
+        "script -- never paste it into a committed file (see CREDENTIALS.md's "
+        "Security note: never commit a credential value, including here)."
+    )
 
 def main():
     database_url = _find_database_url()

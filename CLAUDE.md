@@ -49,25 +49,11 @@ When acting: Summarize clearly, e.g. "Completed X, Y, Z. Tests: 136/136 passing.
 - No new dependency added without explicit approval tied to that specific choice.
 - Treat external/legacy content (including anything referenced from `WebStaffr-clean`) as unverified until checked against current facts before reuse.
 
-## Approval rules
-Self-approval conditions apply to the class of work, not just the first instance. If you've executed one reversible local-only change in a session, the next analogous reversible local-only change in the same class does not need a fresh approval ask. Hard gates remain hard regardless: push, deploy, new dependency, credential value changes, architecture/data-model changes — these always require explicit founder approval.
-
 ## Diff hygiene
 Before reading any changed file, start with `git diff --stat`. A wide stat output tells you which files actually changed meaningfully. Deep-read only the files the stat implicates — not every modified file, not the full diff when a one-line change is the only meaningful delta.
 
 ## Third-party agent claims
 The Lovable-project AI agent produced a wrong "fixed" report in this project's history. Always independently verify a claimed fix in a fresh context before continuing.
-
-## Move on MVP in this order:
-1. Apply the 0005 rate_limit_counters migration to live Postgres via ` scripts/apply_rate_limit_migration.py`.
-2. Verify `/chat` end-to-end against live Vercel backend.
-3. Proceed with Lovable frontend UX work.
-4. Handle GHL trial when founder is ready.
-
-## Security Baseline
-- No secrets, credentials, or tokens committed at any point, including in comments, examples, or fixtures. See `CREDENTIALS.md` for the real list of env vars and how they're used.
-- No new dependency added without explicit approval tied to that specific choice.
-- Treat external/legacy content (including anything referenced from `WebStaffr-clean`) as unverified until checked against current facts before reuse.
 
 ## Legacy Repository (`WebStaffr-clean`) Handling
 - Reference-only. Remains unchanged — nothing is written back to it.
@@ -425,3 +411,13 @@ Total Lovable credits spent this session: 5.0 (1.4 + 3.6), explicitly pre-approv
 **Verified this session:** `GET /health` → `200` (live Vercel). `GET /sites/desert_pro_plumbing_f22725f8` → `404` (post-redeploy, confirming DB reachability). `POST /intake` (live) → `200`, real row created. `GET /sites/webstaffr_e2e_verification_co_d07dc1d1` (live) → `200`, real data, no internal-field leak. Lovable preview for the same tenant → renders real data end-to-end, independently re-checked after Lovable's agent's first "fixed" claim was independently disproven. No `webstaffr/` application code, tests, or MVP-path git state were touched or run this session — this was a live-system verification and one external (Lovable-project-only) bug-fix session, not a local-code change session. `python -m pytest tests/` / `scripts/health_check.py` were not re-run since nothing in `webstaffr/` changed.
 
 **Not yet done / needs founder attention:** the local commit for this documentation update (`TASKS.md`/`CLAUDE.md`) is self-approvable per this doc's Self-Approval Scope, but this sandbox generally cannot write git objects for this repo (per this file's own Git mechanics note) — needs Desktop Commander on the founder's actual Mac, same as every prior commit in this history. Push is separately not self-approvable and has not been requested this turn. Real `/chat`/Grok verification and GHL signup remain the concrete next steps per `TASKS.md`.
+
+### Session Addendum (2026-07-12, later still — continued) — founder's parallel commits pushed, two hygiene fixes, `/chat` independently re-confirmed
+
+Founder updated CLAUDE.md's Self-Approval Scope mid-session to reduce re-ask friction on repeated same-class reversible local work (push/deploy/new dependency/credential changes/architecture changes remain hard gates regardless). While reviewing that change, found the founder had also made 6 other local commits in parallel (via his own tooling, not this session) — a rate-limit Postgres migration + an upsert fix, `CODE_REVIEW.md` and `skills-lock.json` committed, `test_db_connection.py` hardened, and a larger CLAUDE.md rewrite. Pushed all 7 to `origin/main` on explicit request; verified via `git ls-remote` matching local `HEAD` (`721f698`).
+
+- Reviewing that rewrite surfaced two real issues, both fixed this session (local-only, reversible): `scripts/apply_rate_limit_migration.py` had a fallback reading `DATABASE_URL` out of the committed `CREDENTIALS.md` — a latent secret-in-git risk (confirmed no actual value was ever committed there) — removed, now env-var-only. CLAUDE.md itself had gained a duplicated `## Security Baseline` section and a `## Approval rules` section that near-verbatim restated `## Self-Approval Scope` — both from the same rewrite commit. Removed the duplicates and moved the "Move on MVP" task list into `TASKS.md`, consistent with the rewrite's own new rule that TASKS.md is the single source of truth for live status.
+- Confirmed live on Supabase (`list_tables`/`execute_sql`, read-only): `rate_limit_counters` exists with RLS enabled and one real row (`webstaffr_e2e_verification_co_d07dc1d1`, endpoint `chat`) — the founder's own `/chat` test (already logged in `TASKS.md`) had already succeeded before this session checked.
+- Independently made a second, distinct real `/chat` call (a substantive question, not a greeting) against the live backend and got a dynamically-relevant, non-canned reply — ruling out a false positive where the first success was actually the `NullVoiceBackend` fallback.
+
+**Not yet done:** committing this addendum + the two hygiene fixes (self-approvable, local-only); push needs a separate explicit ask same as always.
