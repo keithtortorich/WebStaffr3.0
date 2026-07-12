@@ -27,6 +27,57 @@ class Appointment:
     ghl_synced: bool = False
 
 
+def _normalize_starts_at(raw: str) -> str:
+    """Best-effort parse of common spoken time strings into ISO-8601.
+
+    Accepts:
+    - an existing ISO-8601 timestamp with or without timezone suffix
+    - ``today at 3pm`` / ``today 3pm``
+    - ``3pm`` / ``3:30pm``
+    - ``9am`` / ``9:00am``
+
+    Anything we cannot parse safely falls back to the raw value rather
+    than inventing a date, so callers never receive a fabricated time.
+    """
+    raw = raw.strip()
+    lower = raw.lower()
+
+    today = datetime.now(timezone.utc).date()
+    for fmt in ("%I%p", "%I:%M%p"):
+        try:
+            parsed = datetime.strptime(lower, fmt)
+            return datetime(
+                today.year,
+                today.month,
+                today.day,
+                parsed.hour,
+                parsed.minute,
+                tzinfo=timezone.utc,
+            ).isoformat()
+        except ValueError:
+            pass
+
+    prefixes = ("today at ", "today ")
+    for prefix in prefixes:
+        if lower.startswith(prefix):
+            remainder = lower[len(prefix):]
+            for fmt in ("%I%p", "%I:%M%p"):
+                try:
+                    parsed = datetime.strptime(remainder, fmt)
+                    return datetime(
+                        today.year,
+                        today.month,
+                        today.day,
+                        parsed.hour,
+                        parsed.minute,
+                        tzinfo=timezone.utc,
+                    ).isoformat()
+                except ValueError:
+                    pass
+
+    return raw
+
+
 class AppointmentRepository:
     def __init__(self, conn: Any) -> None:
         self._conn = conn

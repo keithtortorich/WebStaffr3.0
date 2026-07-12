@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ...tenant import Tenant
-from .booking import Appointment, AppointmentRepository
+from .booking import Appointment, AppointmentRepository, _normalize_starts_at
 from .ghl import GHLClient, NullGHLClient
 from .voice import NullVoiceBackend, VoiceBackend
 
@@ -131,7 +131,11 @@ class Angel:
     ) -> Appointment:
         """Books an appointment locally first -- that's the source of
         truth. GHL sync is best-effort and never rolls back the local
-        booking if it fails; a failed sync is logged, not swallowed."""
+        booking if it fails; a failed sync is logged, not swallowed.
+        `starts_at` is normalized through `_normalize_starts_at` so
+        common spoken/relative times from voice callers still resolve
+        to a valid ISO-8601 value instead of being recorded verbatim.
+        """
         appt = Appointment(
             tenant_id=self.tenant.tenant_id,
             contact_name=contact_name,
@@ -140,6 +144,7 @@ class Angel:
             contact_email=contact_email,
             notes=notes,
         )
+        appt.starts_at = _normalize_starts_at(appt.starts_at)
         self._appointments.save(appt)
         logger.info(
             "appointment_booked tenant=%s appointment_id=%s",
@@ -150,7 +155,7 @@ class Angel:
         if sync_to_ghl and ghl_contact_id:
             try:
                 self._call_ghl_with_retry(
-                    lambda: self.ghl_client.create_appointment(ghl_contact_id, starts_at, notes or ""),
+                    lambda: self.ghl_client.create_appointment(ghl_contact_id, appt.starts_at, notes or ""),
                     description="create_appointment",
                 )
                 self._appointments.mark_ghl_synced(self.tenant.tenant_id, appt.appointment_id)

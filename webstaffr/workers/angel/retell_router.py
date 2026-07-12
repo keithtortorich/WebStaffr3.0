@@ -183,8 +183,9 @@ def create_retell_router(
 
     def _handle_book_appointment(angel: Angel, args: dict, conn) -> str:
         preferred_time = args.get("preferred_time")
-        if not preferred_time:
+        if not preferred_time or not preferred_time.strip():
             return "I didn't catch a valid time for that -- could you repeat the preferred time?"
+        preferred_time = preferred_time.strip()
         try:
             # sync_to_ghl=False here: a fresh caller has no existing GHL
             # contact_id yet (Retell doesn't know one), and creating/

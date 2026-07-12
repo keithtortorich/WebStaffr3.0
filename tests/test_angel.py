@@ -6,7 +6,7 @@ import httpx
 from webstaffr.db import connect, migrate
 from webstaffr.tenant import Tenant
 from webstaffr.workers.angel.angel import Angel, load_prompt_template
-from webstaffr.workers.angel.booking import AppointmentRepository
+from webstaffr.workers.angel.booking import AppointmentRepository, _normalize_starts_at
 from webstaffr.workers.angel.ghl import (
     GHLNotConfiguredError,
     GoHighLevelClient,
