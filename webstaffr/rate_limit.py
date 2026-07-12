@@ -86,10 +86,10 @@ def check_and_increment(
     window_start = int(time.time() // window_seconds) * window_seconds
     conn.execute(
         """
-        INSERT INTO rate_limit_counters (tenant_id, endpoint, window_start, request_count)
+        INSERT INTO rate_limit_counters AS t (tenant_id, endpoint, window_start, request_count)
         VALUES (?, ?, ?, 1)
         ON CONFLICT (tenant_id, endpoint, window_start)
-        DO UPDATE SET request_count = request_count + 1
+        DO UPDATE SET request_count = t.request_count + 1
         """,
         (tenant_id, endpoint, window_start),
     )

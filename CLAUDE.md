@@ -10,19 +10,59 @@ Full flow: intake → generated customer site → Angel widget embedded and work
 - **Claude's scope**: backend logic — Angel (voice, GHL, booking), tenant isolation, the workflow/executor engine, tests, migration/architecture work.
 
 ## Process
-- Claude-only. No Grok/ChatGPT coordination until MVP ships. If that changes, it's a fresh, explicit decision — not an inherited process.
-- Short, single-purpose turns. No open-ended strategy debates.
-- Decisions get made once, logged (commit message, and here if durable), and executed — not re-litigated.
-- Never present speculation or inference as fact. Label `[Inference]` / `[Unverified]` where applicable. If uncertain, ask — do not assume.
+- You are not a coder. Minimize questions. Make the best decision based on best practices and ACT on reversible work. Do not ask for approval on reversible local changes.
+- Play it safe on anything irreversible (pushes, deploys, new dependencies, architecture/DB changes, credentials).
+- Default to production-grade safe choices: proper error handling, scoped auth/CORS, rate limiting, clean code, targeted tests, no unnecessary complexity.
+- If truly uncertain or high ambiguity, ask one short clarifying question max. Prefer acting with a safe, documented choice and note it.
+- Never present speculation or inference as fact. Label [Inference] / [Unverified] where applicable. If uncertain, ask — do not assume.
+- Keep sessions focused. Log key decisions in commit messages and TASKS.md. CLAUDE.md addenda must stay minimal (1 paragraph + bullets max).
+- Use the custom `webstaffr-analyze` skill at the start of every session for compressed context.
 
 ## Self-Approval Scope
-Claude may execute a change without waiting for explicit approval only if ALL of the following hold:
-- The change is reversible.
-- It involves no external system interaction (no GitHub push, no deployment, no credential use) beyond what's already directed in the active session.
-- It introduces no architecture or data-model shift.
-- It introduces no new dependency.
+Claude may execute without explicit approval on:
+- Any reversible local-only change (code edits, tests, docs, small refactors).
+- Improvements following best practices (auth, rate limits, error handling, test coverage, performance, security scoping, etc.).
+- Any change that keeps tests passing and health check HEALTHY.
 
-Everything else — pushes, deployments, new dependencies, architecture or data-model changes — requires explicit approval in the session. Self-approval conditions apply to the *class* of work, not just the first instance in a session: once one reversible local-only change in a given class has been approved, the next analogous reversible local-only change in the same class doesn't need another fresh ask. Hard gates (push, deploy, new dependency, credential value changes, architecture/data-model changes) always need explicit approval regardless of what was approved earlier in the session.
+Requires explicit founder approval (one short confirmation):
+- Git push or any deploy.
+- New dependencies.
+- Architecture, data model, or DB schema changes.
+- Anything involving credentials, secrets, production systems, Lovable, Vercel, or Supabase.
+- High-ambiguity decisions that could materially affect cost or live behavior.
+
+When acting: Summarize clearly, e.g. "Completed X, Y, Z. Tests: 136/136 passing. Health: HEALTHY. Ready for push?"
+
+## Token-Efficiency Rules
+- Orientation: read the last addendum + TASKS.md only. Full CLAUDE.md read only when a decision requires historical context.
+- Tests: run on code changes, skip on doc-only. Doc commits do not need full test reruns.
+- Diffs: start with git diff --stat. Deep-read only implicated files, not every modification.
+- Third-party claims: independently verify a claimed fix in a fresh context before continuing. One re-test is cheaper than a wasted credit round or wrong "done" claim entering git history.
+- Deploy health: hit the endpoint, not the status page. Verify live reachability with direct calls.
+
+## CLAUDE.md Hygiene
+- Single source of truth for live status: TASKS.md. CLAUDE.md addenda record durable decisions only.
+- Auto-compaction trigger: when CLAUDE.md exceeds 300 lines, move oldest addenda to CLAUDE_ARCHIVE.md. Reload only the last 2 addendum summaries plus TASKS.md in future sessions.
+
+## Security Baseline
+- No secrets, credentials, or tokens committed at any point, including in comments, examples, or fixtures. See `CREDENTIALS.md` for the real list of env vars and how they're used.
+- No new dependency added without explicit approval tied to that specific choice.
+- Treat external/legacy content (including anything referenced from `WebStaffr-clean`) as unverified until checked against current facts before reuse.
+
+## Approval rules
+Self-approval conditions apply to the class of work, not just the first instance. If you've executed one reversible local-only change in a session, the next analogous reversible local-only change in the same class does not need a fresh approval ask. Hard gates remain hard regardless: push, deploy, new dependency, credential value changes, architecture/data-model changes — these always require explicit founder approval.
+
+## Diff hygiene
+Before reading any changed file, start with `git diff --stat`. A wide stat output tells you which files actually changed meaningfully. Deep-read only the files the stat implicates — not every modified file, not the full diff when a one-line change is the only meaningful delta.
+
+## Third-party agent claims
+The Lovable-project AI agent produced a wrong "fixed" report in this project's history. Always independently verify a claimed fix in a fresh context before continuing.
+
+## Move on MVP in this order:
+1. Apply the 0005 rate_limit_counters migration to live Postgres via ` scripts/apply_rate_limit_migration.py`.
+2. Verify `/chat` end-to-end against live Vercel backend.
+3. Proceed with Lovable frontend UX work.
+4. Handle GHL trial when founder is ready.
 
 ## Security Baseline
 - No secrets, credentials, or tokens committed at any point, including in comments, examples, or fixtures. See `CREDENTIALS.md` for the real list of env vars and how they're used.
