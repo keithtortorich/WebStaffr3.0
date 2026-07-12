@@ -24,7 +24,7 @@ The original Phase 1 ("Validation + architecture + legal, weeks 1–6, no custom
 | 1 | Legal sign-off on guarantee | **Not started — needs your counsel, not delegable to me.** |
 | 2 | Attribution/dashboard (call tracking, lead source) | **Not built.** Real net-new work: per-tenant tracking numbers, an events schema, a dashboard surface. Scope-able the same way `/intake`/`/sites` were built. |
 | 2 | HVAC soft launch | Ready to attempt once you're comfortable — nothing technical blocks it; GHL wiring is optional, not required. |
-| 3 | Plumbing/electrical vertical content | Presentation-layer work only (`trade_presets.py` already has the hook — same pattern as HVAC, just more `TRADE_HINTS`/`INDUSTRY_SOFTWARE` entries). Low effort once one vertical is proven. |
+| 3 | Plumbing/electrical vertical content | **Already done.** Checked `trade_presets.py` directly — full `TRADE_HINTS`/`TRADE_SOFTWARE` entries exist for both, same shape as HVAC. Not a to-build item. |
 | 3 | Voice failover (multi-vendor) | **Not built.** Real gap, matches SiteWork's own flagged weakness. Same `Protocol`+`Null*` shape as existing integrations — a second `VoiceBackend` implementation plus a failover policy. |
 | 3 | Enterprise CRM integrations (Jobber/ServiceTitan/etc.) | New scope, not currently planned or blocking anything. |
 

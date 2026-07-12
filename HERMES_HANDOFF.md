@@ -32,10 +32,13 @@ Per `CLAUDE.md`'s own Self-Approval Scope (applies to any agent, not just me): r
 
 ## 5. Suggested queue for the week, rough priority order
 
-1. Lovable "Site Weaver" UX polish — the plumbing is done, this is now safe, self-contained work.
-2. Delete `scripts/test_db_connection.py` and `scripts/build_database_url.py` once you're comfortable the Supabase connection is staying stable.
-3. When you start the GHL trial: Hermes can prep the integration wiring code ahead of time, but you generate and set the actual `GHL_API_KEY`/`GHL_LOCATION_ID` yourself, same as every other credential so far.
-4. Any further hardening Hermes finds — log it to `TASKS.md` as it's found, don't silently fix things without a record; that's how `CODE_REVIEW.md`'s items got tracked and closed out cleanly.
+1. **Attribution / call-tracking (see `TIER_A_ROADMAP.md`).** Top priority — the one net-new feature that's both real, scoped work and actually unlocks something (the guarantee claim can't be made without it). Scope: a per-tenant tracking-number/lead-source model, a new migration (same pattern as `0003_intake_submissions.sql`/`0005_rate_limit_counters.sql` — SQLite file + a Postgres twin under `migrations/postgres_manual/`), endpoint(s) to record and query events, tests. **This is a DB schema change — a hard gate under CLAUDE.md's own Self-Approval Scope** even for Hermes: get an explicit go from the founder on the schema shape before applying it to live Postgres, same as every prior migration in this project's history.
+2. Lovable "Site Weaver" UX polish — the plumbing is done, this is now safe, self-contained work.
+3. Delete `scripts/test_db_connection.py` and `scripts/build_database_url.py` once you're comfortable the Supabase connection is staying stable.
+4. When you start the GHL trial: Hermes can prep the integration wiring code ahead of time, but you generate and set the actual `GHL_API_KEY`/`GHL_LOCATION_ID` yourself, same as every other credential so far.
+5. Any further hardening Hermes finds — log it to `TASKS.md` as it's found, don't silently fix things without a record; that's how `CODE_REVIEW.md`'s items got tracked and closed out cleanly.
+
+**Explicitly not queued, and why:** voice failover (Retell isn't proven live yet — premature to build a backup for something unproven), tiering logic (no pricing decision exists to encode yet), new CRM integrations like Jobber (nothing currently planned needs one; GHL already covers HVAC/plumbing/electrical). Vertical presets for plumbing/electrical were already checked — already fully built in `trade_presets.py`, not a to-build item.
 
 ## 6. What NOT to hand to Hermes
 
