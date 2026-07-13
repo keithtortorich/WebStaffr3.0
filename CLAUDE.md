@@ -421,3 +421,13 @@ Founder updated CLAUDE.md's Self-Approval Scope mid-session to reduce re-ask fri
 - Independently made a second, distinct real `/chat` call (a substantive question, not a greeting) against the live backend and got a dynamically-relevant, non-canned reply — ruling out a false positive where the first success was actually the `NullVoiceBackend` fallback.
 
 **Not yet done:** committing this addendum + the two hygiene fixes (self-approvable, local-only); push needs a separate explicit ask same as always.
+
+### Session Addendum (2026-07-13) — frontend decision: Lovable is canonical, MVP core flow complete
+
+Founder chose Lovable "Site Weaver" over the local `frontend/` Vite+React scaffold as the canonical frontend, after a pros/cons comparison this session (cost/control favored local; widget/hosting favored Lovable, since Lovable already has the widget embedded and working, verified 2026-07-12). That decision resolves it: **CLAUDE.md's own MVP definition — intake → generated customer site → Angel widget embedded and working — is complete and live in production.**
+
+- `frontend/` is parked, not deleted (this repo's convention: preserve, don't silently remove). It got a real fix earlier today (crash bug + backend-contract field-name mismatches, `6aca5f7`) while its status was still open -- worth having done, not worth building further on unless this decision reverses.
+- Recommended, not required: GitHub-sync Lovable's project so future UX polish is free (confirmed via Lovable's docs this session -- credits are AI-agent-message-only, not commit-triggered). Founder-only OAuth step, not yet done.
+- Remaining work (voice/Retell live-testing, GHL wiring) is adjacent to MVP, not blocking it.
+
+**Not yet done:** committing/pushing this addendum (self-approvable local commit; push needs the usual explicit ask).
