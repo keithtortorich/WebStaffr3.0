@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { fetchSite } from './lib/site-api'
+import type { SiteData } from './lib/types'
 
 function App() {
-  const [site, setSite] = useState<Record<string, unknown> | null>(null)
+  const [site, setSite] = useState<SiteData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +23,7 @@ function App() {
 
   return (
     <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1>{String(site.business_name || 'Your Business')}</h1>
+      <h1>{String(site.biz_name || 'Your Business')}</h1>
       <p>{String(site.tagline || '')}</p>
       <p>{String(site.differentiator || '')}</p>
       <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>

@@ -20,7 +20,7 @@ export const INDUSTRY: Record<Industry, {
 };
 
 export function detectIndustry(site: any): Industry {
-  const s = [site?.industry, site?.business_name, site?.tagline, (site?.services||[]).join(' ')].join(' ').toLowerCase();
+  const s = [site?.industry, site?.biz_name, site?.tagline, (site?.services||[]).join(' ')].join(' ').toLowerCase();
   if (/restaurant|food|catering|kitchen|dining/.test(s)) return 'restaurant';
   if (/spa|medspa|med\s*spa|aesthetic|botox|filler|laser/.test(s)) return 'med-spa';
   if (/dentist|dental|orthodont|teeth/.test(s)) return 'dentist';

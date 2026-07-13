@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { fetchSite } from '../lib/site-api';
-import { useSite } from '../hooks/use-site';
-import { detectIndustry, stylesheet, type Industry } from '../lib/theme';
-import type { SiteData } from '../lib/types';
+import { fetchSite } from './lib/site-api';
+import { useSite } from './hooks/use-site';
+import { detectIndustry, stylesheet, INDUSTRY, type Industry } from './lib/theme';
+import type { SiteData } from './lib/types';
 
 /* ---------- atoms ---------- */
 const Section = ({ id, title, children, dark, rawStyle }: any) => (
@@ -48,16 +47,17 @@ const Button = ({ children, onClick, href, primary = false, arrow = false, fullW
 
 /* ---------- page ---------- */
 export default function SitePage() {
-  const { tenantId } = useParams<{ tenantId: string }>();
+  const params = new URLSearchParams(window.location.search);
+  const tenantId = params.get('tenant') || '';
   const { site, loading, error } = useSite(tenantId);
 
   const industry = useMemo(() => site ? detectIndustry(site) : 'other', [site]);
-  const theme = useMemo(() => ({} as any).INDUSTRY[industry], [industry]) as any;
+  const theme = useMemo(() => INDUSTRY[industry], [industry]);
   const css = useMemo(() => stylesheet(theme.headingFont, theme.bodyFont, theme.accent), [theme]);
 
   const city = useMemo(() => {
     if (!site) return 'your area';
-    const hay = [site.service_area, site.address, site.business_name, site.phone, site.email].join(' ');
+    const hay = [site.service_area, site.biz_name, site.phone, site.email].join(' ');
     const m = hay.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2})/);
       return m ? m[1] : 'your area';
   }, [site]);
@@ -83,7 +83,7 @@ export default function SitePage() {
         <div style={{ marginTop: 18, fontSize: 13, opacity: 0.6 }}>
           Tenant: <code>{tenantId || '(missing — open /sites/{tenantId} instead)'}</code>
         </div>
-        {(site as any)?.business_name
+        {(site as any)?.biz_name
           ? <p style={{ marginTop: 8, fontSize: 13, opacity: 0.65 }}>Hit a data validation failure but got partial data — fix the backend and try again.</p>
           : null}
       </Card>
@@ -95,11 +95,11 @@ export default function SitePage() {
   const email = (site as any).email || '';
   const licenseNumber = (site as any).license_number || '';
   const services = (site.services || []).slice(0, 6);
-  const star = (site as any).star_rating || 4.9;
+  const star = (site as any).rating_value || 4.9;
   const reviews = (site as any).review_count || 0;
-  const googleReviewsUrl = (site as any).google_reviews_url || '';
+  const googleReviewsUrl = (site as any).google_review_link || '';
   const certifications = (site as any).certifications || ['Licensed & Insured', 'Background Checked', `${city} Trusted Pro`];
-  const story = (site as any).story || `${site.business_name} was built to make one thing simple: getting quality ${services[0]?.toLowerCase() || 'service'} in ${city} shouldn't feel like a hassle.`;
+  const story = (site as any).story || `${site.biz_name} was built to make one thing simple: getting quality ${services[0]?.toLowerCase() || 'service'} in ${city} shouldn't feel like a hassle.`;
   const teamName = (site as any).team_member_name || 'Your Team';
   const teamRole = (site as any).team_member_role || 'Owner';
   const teamPhoto = (site as any).team_photo_url || '';
@@ -146,7 +146,7 @@ export default function SitePage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {certifications.slice(0, 4).map((c) => (
+            {certifications.slice(0, 4).map((c: string) => (
               <span key={c} style={{ fontSize: 12, background: '#f3f4f6', padding: '6px 10px', borderRadius: 999, color: '#374151' }}>{c}</span>
             ))}
           </div>
@@ -158,7 +158,7 @@ export default function SitePage() {
 
       {/* 3 — SERVICES */}
       <Section id="services" title={`All Services in ${city}`} dark>
-        <p className="subtitle" style={{ maxWidth: 720, marginBottom: 28 }}>Top-rated services from {site.business_name}, fully vetted and insured.</p>
+        <p className="subtitle" style={{ maxWidth: 720, marginBottom: 28 }}>Top-rated services from {site.biz_name}, fully vetted and insured.</p>
         <div className="grid-3">
           {services.map((name: string) => (
             <Card key={name} light dense>
@@ -214,7 +214,7 @@ export default function SitePage() {
       </Section>
 
       {/* 6 — STORY */}
-      <Section title={`${site.business_name} Story`} dark>
+      <Section title={`${site.biz_name} Story`} dark>
         <div style={{ display: 'grid', gap: 28, gridTemplateColumns: 'minmax(0,1fr)', alignItems: 'center' }} className="grid-3">
           <div>
             <h2 style={{ marginBottom: 14 }}>{`We’re not a faceless chain. We’re your neighbors.`}</h2>
@@ -276,7 +276,7 @@ export default function SitePage() {
       <footer style={{ background: '#0b1220', color: '#94a3b8', padding: '48px 20px 88px' }}>
         <div className="container" style={{ display: 'flex', flexWrap: 'wrap', gap: 28, justifyContent: 'space-between' }}>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{site.business_name}</div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{site.biz_name}</div>
             <div style={{ fontSize: 13 }}>{site.service_area || city}</div>
             {phone && <div style={{ fontSize: 13, marginTop: 6 }}><a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} style={{ color: '#e2e8f0' }}>{phone}</a></div>}
             {licenseNumber && <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>License: {licenseNumber}</div>}
@@ -297,7 +297,7 @@ export default function SitePage() {
           </div>
         </div>
         <div className="container" style={{ marginTop: 30, paddingTop: 18, borderTop: '1px solid #1f2937', fontSize: 12, opacity: 0.45 }}>
-          {`© ${new Date().getFullYear()} ${site.business_name || ''}. All rights reserved.`}
+          {`© ${new Date().getFullYear()} ${site.biz_name || ''}. All rights reserved.`}
         </div>
       </footer>
 
