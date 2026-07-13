@@ -61,7 +61,7 @@ The Lovable-project AI agent produced a wrong "fixed" report in this project's h
 - Anything else from the old repo (unresolved P0 decisions, the old coordination protocol, an AOKAI spec that was never located) is not inherited. If it becomes relevant to actual MVP scope, it gets raised fresh here.
 
 ## Current Status
-- Migrated from `WebStaffr-clean`: engine, persistence, Angel worker, tests (54/54 passing), health check (HEALTHY).
+- Migrated from `WebStaffr-clean`: engine, persistence, Angel worker, tests (136/136 passing), health check (HEALTHY).
 - No auth, CI/CD, hosting, or production deployment decision made yet.
 - No real credentials configured for GoHighLevel or Grok — `GrokVoiceBackend`/`GoHighLevelClient` remain `[Unverified]` against live accounts until exercised with real keys.
 - The pytest-dependency and CORS-scoping fixes below were committed and pushed to `origin/main` (`3ca933b`) after founder approval.
@@ -408,9 +408,7 @@ Total Lovable credits spent this session: 5.0 (1.4 + 3.6), explicitly pre-approv
 - GHL signup/wiring untouched, still blocked on the founder's own trial-timing decision (unchanged from prior addenda).
 - `scripts/test_db_connection.py` and `scripts/build_database_url.py` are now candidates for deletion per this repo's own prior note ("safe to delete once resolved") on the Supabase-connection half of that condition — not deleted this session, just newly actionable.
 
-**Verified this session:** `GET /health` → `200` (live Vercel). `GET /sites/desert_pro_plumbing_f22725f8` → `404` (post-redeploy, confirming DB reachability). `POST /intake` (live) → `200`, real row created. `GET /sites/webstaffr_e2e_verification_co_d07dc1d1` (live) → `200`, real data, no internal-field leak. Lovable preview for the same tenant → renders real data end-to-end, independently re-checked after Lovable's agent's first "fixed" claim was independently disproven. No `webstaffr/` application code, tests, or MVP-path git state were touched or run this session — this was a live-system verification and one external (Lovable-project-only) bug-fix session, not a local-code change session. `python -m pytest tests/` / `scripts/health_check.py` were not re-run since nothing in `webstaffr/` changed.
-
-**Not yet done / needs founder attention:** the local commit for this documentation update (`TASKS.md`/`CLAUDE.md`) is self-approvable per this doc's Self-Approval Scope, but this sandbox generally cannot write git objects for this repo (per this file's own Git mechanics note) — needs Desktop Commander on the founder's actual Mac, same as every prior commit in this history. Push is separately not self-approvable and has not been requested this turn. Real `/chat`/Grok verification and GHL signup remain the concrete next steps per `TASKS.md`.
+**Verified this session:** `GET /health` → `200` (live Vercel). `GET /sites/desert_pro_plumbing_f22725f8` → `404` (post-redeploy, confirming DB reachability). `POST /intake` (live) → `200`, real row created. `GET /sites/webstaffr_e2e_verification_co_d07dc1d1` (live) → `200`, real data, no internal-field leak. Lovable preview for the same tenant → renders real data end-to-end, independently re-checked after Lovable's agent's first "fixed" claim was independently disproven. No `webstaffr/` application code, tests, or MVP-path git state were touched or run this session — this was a live-system verification and one external (Lovable-project-only) bug-fix session, not a local-code change session. `python -m pytest tests/` / `scripts/health_check.py` were not re-run since nothing in `webstaffr/` changed. **Orientation verifies local `main` == `origin/main` at `3aaa3fb` as of 2026-07-13.** Real `/chat`/Grok verification and GHL signup remain the concrete next steps per `TASKS.md`.
 
 ### Session Addendum (2026-07-12, later still — continued) — founder's parallel commits pushed, two hygiene fixes, `/chat` independently re-confirmed
 
