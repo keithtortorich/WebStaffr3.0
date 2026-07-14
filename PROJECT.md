@@ -1,4 +1,9 @@
-# PROJECT.md — WebStaffr
+# PROJECT.md
+
+Default operating rules for this workspace:
+- Load `webstaffr-workflow-guardian` at session start.
+- Follow analyze → plan → delegate → verify.
+- Do not inline-code or inline-test when a subagent is the right tool.
 
 ## Product Vision
 WebStaffr is an AI employee platform: an extension of a business's team through configurable AI workers, not a bundle of point automations. The product should read as workforce, not tooling.

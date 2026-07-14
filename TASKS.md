@@ -33,6 +33,11 @@ Last updated: 2026-07-13.
   - **Correction, not a rewrite, of the 2026-07-07 "Task #13 done" addendum in `CLAUDE.md`:** that addendum's claim that the frontend was correctly wired and its own preview check ("status: ready, no build error") were both true as far as they went, but did not amount to a working end-to-end fetch in production — the runtime-vs-build-time secret gap above meant the deployed site never actually reached the backend until this session's fix. See the new CLAUDE.md addendum for the full correction note, per this repo's append-only-log convention (prior addenda are not silently edited).
 
 - #31 — **2026-07-13 orientation + doc sync** (this session): re-verified repository state, confirmed local `main` matches `origin/main` at `3aaa3fb`, ran full test suite (`136/136 passing`) and health check (`HEALTHY`) from actual execution, reviewed `CLAUDE.md` addenda + `TASKS.md` + `CREDENTIALS.md`, and updated markdown state to reflect current verified date/status. No application code, tests, or MVP-path git state changed — documentation alignment only. Pending local commit; push requires explicit approval per `CLAUDE.md` Self-Approval Scope.
+- #32 — **2026-07-13 product direction reset** (this session): current active direction is three web properties:
+  1. **WebStaffr.com** — main product site: positioning, intake, pricing, signup.
+  2. **Trade example sites** — example customer sites embedded within WebStaffr's domain, showing real trade vertical demos (HVAC, plumbing, electrical, salon, dentist, etc.).
+  3. **Investor forward site** — standalone investor-facing site for fundraising/pitch material.
+  The backend intake/site API and Lovable "Site Weaver" multi-tenant frontend remain the live production implementation for generated customer sites. `MVP_OVERVIEW.md` updated to reflect this direction. Pending local commit; push requires explicit approval per `CLAUDE.md` Self-Approval Scope.
 
 ## Blocked (on founder's own decision, not external)
 

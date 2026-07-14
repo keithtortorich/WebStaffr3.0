@@ -28,7 +28,21 @@ from .retell import RetellWebhookVerifier
 from .retell_router import create_retell_router
 from .voice import VoiceBackend
 
+try:  # optional in minimal test/runtime envs without ServiceTitan configured
+    from ...integrations.servicetitan import ServiceTitanSync as _ServiceTitanSync
+except Exception:  # noqa: BLE001
+    _ServiceTitanSync = None  # type: ignore[assignment,misc]
+
+# Expose under the public module name so test patches and any future
+# direct imports resolve consistently, while preserving the existing
+# lazy-import fallback behavior inside the handler below.
+ServiceTitanSync = _ServiceTitanSync
+
+import os as _os
+
 logger = logging.getLogger("webstaffr.angel.router")
+
+_SERVICETITAN_POLL_PATH = "/integrations/servicetitan/poll"
 
 
 # CODE_REVIEW.md (2026-07-08, High, action item #2): ChatRequest.message and
@@ -223,6 +237,38 @@ def create_app(
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
+
+    if _os.environ.get("SERVICETITAN_ENABLED", "false").lower() == "true":
+        @app.post(_SERVICETITAN_POLL_PATH)
+        def servicetitan_poll() -> dict:
+            """Bounded read from ServiceTitan.
+
+            Available only when `SERVICETITAN_ENABLED=true`.
+            """
+            try:
+                from ...integrations.servicetitan import ServiceTitanNotConfiguredError, ServiceTitanClient, ServiceTitanSync
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+            try:
+                client = ServiceTitanClient()
+            except ServiceTitanNotConfiguredError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+            sync = ServiceTitanSync(client)
+            return {
+                "results": [
+                    {
+                        "resource": result.resource,
+                        "fetched": result.fetched,
+                        "failed": result.failed,
+                        "error": result.error,
+                    }
+                    for result in sync.run()
+                ]
+            }
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(req: ChatRequest) -> ChatResponse:

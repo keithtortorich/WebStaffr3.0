@@ -31,16 +31,39 @@ The real, built MVP flow is: contractor intake form → auto-generated tenant we
 
 ## 2. Pricing — carried over from planning docs, not yet re-validated against a paying customer
 
-| Tier | Price | Includes | Positioning |
+|| Tier | Price | Includes | Positioning |
 |---|---|---|---|
-| Office Essentials | $147/mo | Website ops only, no AI agent | Trust / "never goes dark" |
-| **AI Office Staff (anchor)** | **$497/mo** | Website ops + service advisor + 24/7 receptionist* + lead coordinator + reputation manager | Loss prevention |
-| AI Business Manager | $997/mo | Everything above + sales consultant + marketing coordinator + growth manager | Growth |
-| White-Glove / Multi-Location | ~$2,485/mo, contact-sales | + FSM software integration (ServiceTitan/Jobber/Housecall Pro), dedicated onboarding | Anchor-pricing decoy with real cost behind it |
+|| **Office Staff (recommended)** | **$497/mo** | Service Advisor + 24/7 Receptionist + Lead Coordinator + Reputation Manager + Website Operations Manager | Loss prevention |
+|| **Business Manager** | **$997/mo** | Everything in Office Staff + Sales Consultant + Marketing Coordinator + Growth Manager | Growth |
 
-*"24/7 receptionist" in this tier currently means the text-chat widget, not a phone line — see Section 1. Either adjust the tier description to match reality, or treat phone coverage as a near-term roadmap item this tier is pre-selling.
+**Logistical split — two separate "finding clients" layers:**
+
+1. **WebStaffr as an agency = the finder**: WebStaffr finds tradesmen/contractors, signs them up, and bills them. They are our clients. Our "Sales Consultant" and "Marketing Coordinator" roles are doing this.
+2. **Our clients = the tradesmen**: Those signed-up contractors use WebStaffr's site + chat + lead tools to find their own end-customers (homeowners, property managers, etc.). That is their job, not ours — our product just makes them better at it.
+
+These layers are separate and should not be blurred. WebStaffr's CAC and retention is about recruiting and keeping the contractor as a subscriber. The contractor's close rate and response time is about converting the homeowner into their job — that's their unit economics, solved by our product, not our business model.
+
+"24/7 Receptionist" in this tier currently means the text-chat widget, not a phone line — see Section 1. Either adjust the tier description to match reality, or treat phone coverage as a near-term roadmap item this tier is pre-selling.
+
+Office Staff is free for 30 days with the generated site. If they want to keep the site and workforce after 30 days: $497/mo. Business Manager is an upgrade tier, not a trial-tier product.
 
 [Unverified] These prices come from planning docs, not measured results — no live paying customer has been confirmed anywhere in this repo's history as of 2026-07-08.
+
+## 2b. Field-service software as a qualification signal and lead source
+
+ServiceTitan, Jobber, Housecall Pro, and similar platforms are **not upgrade paths, add-ons, or enterprise tiers.** They are baseline environment signals. A contractor already paying for and operating inside one of these tools is a warmer, faster-converting lead than a contractor with no field-service software at all.
+
+**Why this shortens the path to Layer 1:**
+- Tool adoption implies a business at least large enough to systematize — closer to the $500K–$3M HVAC ICP than a solo operator still on paper and texts.
+- They already understand SaaS workflow costs, so onboarding friction and “why pay for software again” objection is lower.
+- Integration depth becomes a differentiator immediately: WebStaffr can sit alongside their existing stack instead of replacing it.
+
+**Realistic sourcing paths:**
+- ServiceTitan/Jobber app marketplace or integrations directory listing.
+- Co-marketing through ServiceTitan partner channels, user communities, or vertical events.
+- Targeted outreach to contractors who explicitly list ServiceTitan/Jobber on their site or in ads — public signals only.
+
+**Not realistic:** scraping ServiceTitan’s internal customer list for outbound cold campaigns. That data is not publicly available and would require a data-licensing relationship this project has not pursued.
 
 ---
 

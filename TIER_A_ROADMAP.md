@@ -26,7 +26,7 @@ The original Phase 1 ("Validation + architecture + legal, weeks 1–6, no custom
 | 2 | HVAC soft launch | Ready to attempt once you're comfortable — nothing technical blocks it; GHL wiring is optional, not required. |
 | 3 | Plumbing/electrical vertical content | **Already done.** Checked `trade_presets.py` directly — full `TRADE_HINTS`/`TRADE_SOFTWARE` entries exist for both, same shape as HVAC. Not a to-build item. |
 | 3 | Voice failover (multi-vendor) | **Not built.** Real gap, matches SiteWork's own flagged weakness. Same `Protocol`+`Null*` shape as existing integrations — a second `VoiceBackend` implementation plus a failover policy. |
-| 3 | Enterprise CRM integrations (Jobber/ServiceTitan/etc.) | New scope, not currently planned or blocking anything. |
+| 3 | Enterprise CRM integrations (Jobber/ServiceTitan/etc.) | Not add-on products — these are **qualification signals**. Contractors already on ServiceTitan, Jobber, Housecall Pro, etc. are automatic target clients because WebStaffr integrates alongside them. The existing intake form already surfaces these tools in `TRADE_SOFTWARE`. | New scope, not currently planned or blocking anything. |
 
 ## What I can actually build vs. what's yours
 
