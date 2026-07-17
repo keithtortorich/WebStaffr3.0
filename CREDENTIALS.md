@@ -98,6 +98,21 @@
 - **Status**: implemented and tested; no real caller configured yet.
 - **Security**: never commit. Same as above.
 
+### 6. `SERVICETITAN_CLIENT_ID` + `SERVICETITAN_CLIENT_SECRET` + `SERVICETITAN_TENANT_ID` (+ optional `SERVICETITAN_BASE_URL`)
+- **Purpose**: read-first polling of jobs, customers, appointments, invoices,
+  payments, locations, projects, installed equipment, and technicians.
+- **Behavior**:
+  - All three required vars set -> `webstaffr/integrations/servicetitan/client.py`
+    builds a real `ServiceTitanClient`. Missing any one raises
+    `ServiceTitanNotConfiguredError` at construction time; the
+    `/integrations/servicetitan/poll` endpoint surfaces this as a `503`.
+- **Status**: client and sync logic are implemented and have offline unit tests in
+  `tests/test_servicetitan.py`. The polling endpoint is behind
+  `SERVICETITAN_ENABLED=true` in `router.py`; no live ServiceTitan account has
+  been exercised yet. Endpoint paths/payload shapes are `[Unverified]` against
+  a live ServiceTitan tenant until exercised with real credentials.
+- **Security**: never commit. Same as above.
+
 ## Local Development Setup
 
 ```bash
