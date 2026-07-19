@@ -13,6 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from .attribution import TrackingNumberRepository
 from .db import DB_ERRORS, get_connection
 from .intake import (
     IntakeRepository,
@@ -127,6 +128,13 @@ def submit_intake(req: IntakeRequest, request: Request) -> IntakeResponse:
     try:
         repo = IntakeRepository(conn)
         repo.save(submission)
+        # Every tenant gets a tracking number the moment they have a real
+        # site to point it at -- get_or_create() is idempotent, so a
+        # resubmission for the same tenant_id (there isn't one today, but
+        # nothing here assumes there never will be) can't create a second
+        # one. See attribution.py's module docstring for why this isn't a
+        # real phone number yet.
+        TrackingNumberRepository(conn).get_or_create(tenant_id)
         conn.commit()
     finally:
         conn.close()

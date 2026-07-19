@@ -2,7 +2,7 @@
 
 Working task list for the intake → generated customer site → Angel widget MVP flow (see `CLAUDE.md` for full operational history/decisions, `PROJECT.md` for product vision). Kept here so state survives across chat sessions.
 
-Last updated: 2026-07-13.
+Last updated: 2026-07-19.
 
 ## Completed
 
@@ -58,6 +58,66 @@ Last updated: 2026-07-13.
   503s. Pending: `CREDENTIALS.md` env var documentation (added this session),
   provider-agnostic tenant-to-ServiceTitan mapping wiring, and live testing
   against real credentials. No DB schema change, no router wiring, no push.
+
+- #34 : **Attribution/call-tracking system built (2026-07-19)** : unblocks
+  the "pays for itself" guarantee conversation flagged in `TIER_A_ROADMAP.md`
+  Phase 2. Founder chose this over an immediate HVAC soft launch (option B
+  of 3 presented), on the reasoning that proof-of-performance should exist
+  before a guarantee is made, not after.
+  - New: `webstaffr/attribution.py` (`TrackingNumberRepository`,
+    `CallEventRepository`, `CallEvent`/`TrackingNumber` dataclasses),
+    `webstaffr/attribution_router.py` (`GET /tenants/{tenant_id}/tracking-number`,
+    `/metrics`, `/calls` -- read-only from the outside; events are written
+    by in-process callers, not a public ingestion endpoint, so this adds no
+    new unauthenticated write surface alongside `/book`/`/webhooks/ghl`'s
+    documented history).
+  - Migration `0006_attribution.sql` (`tracking_numbers`, `call_events`) --
+    applied to both SQLite (local/tests) and, after founder approval, live
+    Supabase (`postgres_manual/0006_attribution.sql`, RLS enabled on both
+    new tables same as every other table). `get_advisors` re-checked clean
+    after applying: only the expected INFO-level "RLS enabled, no policy"
+    notices, same as the other 7 tables.
+  - Wired in: `intake_router.py` auto-creates a tracking number on first
+    successful `/intake` (idempotent `get_or_create`); `retell_router.py`
+    logs `call_received`/`call_ended` from the call-lifecycle webhook and
+    `appointment_booked` from `book_appointment` -- all best-effort (a
+    logging failure never blocks or fails a real call/booking; verified via
+    a test where the tenant row doesn't exist yet and the webhook still
+    returns 200).
+  - `tracking_number` is a logical identifier (`trk_<tenant>_<random>`),
+    not a real phone number -- no Twilio/Retell number-provisioning
+    integration exists yet. Meant to be updated in place once a real DID is
+    provisioned per tenant.
+  - `estimated_value_usd` in the metrics response is `appointments_booked ×
+    $250`, explicitly labeled `[Inference]`/placeholder in the API response
+    itself, not presented as a measured figure -- same "plan against a
+    placeholder" posture as `STRATEGY.md`'s CAC/churn numbers.
+  - Two real, pre-existing bugs found and fixed while getting the test
+    suite to run at all (both were in uncommitted working-tree state from
+    a prior session's Kokoro-TTS-proxy + ServiceTitan-scaffold work, not
+    caused by this session): `router.py`'s `proxy_kokoro_speech` used
+    `await` without being declared `async def` (a `SyntaxError` that broke
+    every test collection, not just TTS-path tests); `import os as _os` was
+    placed *after* its first use at module load time (`NameError` on
+    import). Both are one-line fixes, unrelated to attribution itself.
+  - One coupling bug in this session's own new code, found via the
+    existing (unrelated) Retell test suite: initial wiring nested the
+    pre-existing GHL-note-logging logic inside the same try/except as new
+    attribution logging, so an attribution failure (e.g. FK violation on a
+    tenant that doesn't exist in a given test's DB) silently skipped the
+    GHL note too. Fixed by giving each concern its own try/except so one
+    failing never suppresses the other -- both are independently
+    best-effort.
+  - 20 new tests (`tests/test_attribution.py`): repository-level (idempotent
+    tracking-number creation, per-tenant metric scoping, event ordering,
+    metadata round-trip) and HTTP-level (intake creates a tracking number,
+    404 handling, CORS scoping on the new `/tenants/` prefix, a regression
+    guard that `/book` still carries no CORS header). **169/169 passing**
+    (149 prior + 20 new), health check HEALTHY.
+  - Not yet built: the Lovable dashboard frontend that reads these
+    endpoints (task in progress, costs Lovable credits, approved same
+    session) and real phone-number provisioning to replace the logical
+    `trk_` identifier with an actual DID.
 
 ## MVP status: core flow is complete
 

@@ -9,6 +9,7 @@ own logic.
 from __future__ import annotations
 
 import logging
+import os as _os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -16,6 +17,7 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field
 
+from ...attribution_router import attribution_router
 from ...db import DB_ERRORS, connect, get_connection as _db_get_connection, migrate, using_postgres
 from ...intake_router import intake_router
 from ...rate_limit import RateLimitExceeded, check_and_increment
@@ -33,12 +35,15 @@ try:  # optional in minimal test/runtime envs without ServiceTitan configured
 except Exception:  # noqa: BLE001
     _ServiceTitanSync = None  # type: ignore[assignment,misc]
 
+# Optional external TTS backend. When KOKORO_TTS_URL is set, /v1/audio/speech
+# proxies OpenAI-compatible speech requests to that backend instead of
+# requiring any new dependency or model hosting inside this repo.
+_KOKORO_TTS_URL = _os.environ.get("KOKORO_TTS_URL")
+
 # Expose under the public module name so test patches and any future
 # direct imports resolve consistently, while preserving the existing
 # lazy-import fallback behavior inside the handler below.
 ServiceTitanSync = _ServiceTitanSync
-
-import os as _os
 
 logger = logging.getLogger("webstaffr.angel.router")
 
@@ -123,10 +128,14 @@ SUPPORTED_EVENT_TYPES = {"website_lead", "missed_call"}
 # this set, not an accidental side effect of the app-wide wildcard that
 # used to be here.
 _CORS_SCOPED_PATHS = {"/chat", "/intake"}
+# /tenants/{tenant_id}/{metrics,calls,tracking-number} are read by the
+# Lovable dashboard client-side, same reasoning as /sites/{tenant_id} --
+# see _CORS_SCOPED_PREFIXES below, where the actual prefix is registered
+# (a dynamic path segment can't be listed here as an exact match).
 # Prefixes rather than exact paths, for routes with a path parameter
 # (/intake/presets/{industry}, /sites/{tenant_id}) -- exact-match
 # membership in _CORS_SCOPED_PATHS can't match a dynamic segment.
-_CORS_SCOPED_PREFIXES = ("/intake/presets", "/sites/")
+_CORS_SCOPED_PREFIXES = ("/intake/presets", "/sites/", "/tenants/")
 
 
 class ScopedCORSMiddleware(BaseHTTPMiddleware):
@@ -193,6 +202,7 @@ def create_app(
     app.state.db_path = db_path  # read by intake_router's/site_router's _get_connection()
     app.include_router(intake_router)
     app.include_router(site_router)
+    app.include_router(attribution_router)
     # /retell/* is server-to-server only (Retell calling this app, not a
     # browser) -- intentionally not added to ScopedCORSMiddleware's paths,
     # same reasoning as /book and /webhooks/ghl.
@@ -237,6 +247,25 @@ def create_app(
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
+
+    if _KOKORO_TTS_URL:
+        @app.post("/v1/audio/speech")
+        async def proxy_kokoro_speech(request: Request) -> Response:
+            """Proxy OpenAI-compatible TTS requests to Kokoro when KOKORO_TTS_URL is configured.
+
+            Keeps this app free of model hosting or new dependencies.
+            """
+            import httpx as _httpx
+
+            url = f"{_KOKORO_TTS_URL.rstrip('/')}/v1/audio/speech"
+            body = await request.body()
+            headers = {k: v for k, v in request.headers.items() if k.lower() not in {"host", "content-length"}}
+            try:
+                with _httpx.Client(timeout=60.0) as client:
+                    resp = client.post(url, content=body, headers=headers)
+                return Response(content=resp.content, status_code=resp.status_code, headers=dict(resp.headers))
+            except _httpx.HTTPError as exc:
+                raise HTTPException(status_code=503, detail="TTS backend unavailable") from exc
 
     if _os.environ.get("SERVICETITAN_ENABLED", "false").lower() == "true":
         @app.post(_SERVICETITAN_POLL_PATH)

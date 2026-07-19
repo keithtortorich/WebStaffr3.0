@@ -32,7 +32,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from ...db import DB_ERRORS, get_connection
+from ...attribution import CallEvent, CallEventRepository, TrackingNumberRepository
+from ...db import DB_ERRORS, StorageError, get_connection
 from ...tenant import InvalidTenantError, Tenant
 from .angel import Angel
 from .ghl import GHLClient
@@ -55,6 +56,25 @@ def _tenant_id_from_payload(payload: dict) -> Optional[str]:
     under `call` so either shape resolves the same way."""
     metadata = payload.get("metadata") or payload.get("call", {}).get("metadata") or {}
     return metadata.get("tenant_id")
+
+
+def _call_id_from_payload(payload: dict) -> Optional[str]:
+    """Same both-shapes-checked pattern as _tenant_id_from_payload, for the
+    call identifier used to correlate attribution events about the same
+    call (see attribution.py's CallEvent.call_id)."""
+    return payload.get("call_id") or (payload.get("call") or {}).get("call_id")
+
+
+def _duration_seconds_from_call(call: dict) -> Optional[int]:
+    """[Unverified] against a live Retell account, same caveat as this
+    module's other payload-shape assumptions: tries the documented
+    start/end timestamp fields (milliseconds since epoch) and falls back
+    to None rather than guessing at a wrong field name."""
+    start = call.get("start_timestamp")
+    end = call.get("end_timestamp")
+    if isinstance(start, (int, float)) and isinstance(end, (int, float)) and end >= start:
+        return int((end - start) / 1000)
+    return None
 
 
 class FunctionCallResult(BaseModel):
@@ -124,18 +144,66 @@ def create_retell_router(
 
         logger.info("retell_call_event tenant=%s event=%s call_id=%s", tenant.tenant_id, event_type, call_id)
 
-        if event_type == "call_ended":
-            call_analysis = call.get("call_analysis", {}) or {}
-            summary = call_analysis.get("call_summary")
-            ghl_contact_id = (call.get("metadata") or {}).get("ghl_contact_id")
-            if summary and ghl_contact_id:
-                conn = _get_connection()
+        # Attribution logging and the pre-existing GHL-note logic are two
+        # independent concerns that happen to share a connection -- each is
+        # wrapped in its own try/except so a failure in one (e.g. a
+        # tenant_id with no tenants row yet, or a GHL API error) can never
+        # suppress the other. Both are best-effort: neither should be the
+        # reason this webhook 500s back to Retell.
+        if event_type in ("call_started", "call_ended"):
+            conn = _get_connection()
+            try:
+                call_analysis = call.get("call_analysis", {}) or {}
+
                 try:
-                    angel = Angel(tenant=tenant, conn=conn, voice_backend=voice_backend, ghl_client=ghl_client)
-                    angel.log_note_to_ghl(ghl_contact_id, f"Angel voice call summary: {summary}")
-                    conn.commit()
-                finally:
-                    conn.close()
+                    tracking = TrackingNumberRepository(conn).get_for_tenant(tenant.tenant_id)
+                    tracking_number = tracking.tracking_number if tracking else None
+
+                    if event_type == "call_started":
+                        CallEventRepository(conn).log_event(
+                            CallEvent(
+                                tenant_id=tenant.tenant_id,
+                                event_type="call_received",
+                                tracking_number=tracking_number,
+                                call_id=call_id,
+                            )
+                        )
+                    else:  # call_ended
+                        CallEventRepository(conn).log_event(
+                            CallEvent(
+                                tenant_id=tenant.tenant_id,
+                                event_type="call_ended",
+                                tracking_number=tracking_number,
+                                call_id=call_id,
+                                duration_seconds=_duration_seconds_from_call(call),
+                                outcome=(
+                                    "successful" if call_analysis.get("call_successful") else
+                                    call.get("disconnection_reason") or "completed"
+                                ),
+                            )
+                        )
+                except (*DB_ERRORS, StorageError):
+                    # Includes StorageError, not just DB_ERRORS: log_event()
+                    # wraps a raw DB_ERRORS failure (e.g. a call for a
+                    # tenant_id that doesn't have a tenants row -- Retell's
+                    # dashboard-configured metadata is external input and
+                    # could reference a stale/misconfigured tenant_id) into
+                    # StorageError before it gets here.
+                    logger.exception(
+                        "retell_attribution_logging_failed tenant=%s event=%s call_id=%s",
+                        tenant.tenant_id, event_type, call_id,
+                    )
+
+                if event_type == "call_ended":
+                    summary = call_analysis.get("call_summary")
+                    ghl_contact_id = (call.get("metadata") or {}).get("ghl_contact_id")
+                    if summary and ghl_contact_id:
+                        angel = Angel(tenant=tenant, conn=conn, voice_backend=voice_backend, ghl_client=ghl_client)
+                        angel.log_note_to_ghl(ghl_contact_id, f"Angel voice call summary: {summary}")
+
+                conn.commit()
+            finally:
+                conn.close()
 
         return {"status": "received"}
 
@@ -164,7 +232,7 @@ def create_retell_router(
             angel = Angel(tenant=tenant, conn=conn, voice_backend=voice_backend, ghl_client=ghl_client)
 
             if name == "book_appointment":
-                result = _handle_book_appointment(angel, args, conn)
+                result = _handle_book_appointment(angel, args, conn, tenant.tenant_id, _call_id_from_payload(payload))
             elif name == "escalate_to_human":
                 logger.info("retell_escalation tenant=%s reason=%s", tenant.tenant_id, args.get("reason"))
                 result = "Let me connect you with a team member now."
@@ -181,7 +249,9 @@ def create_retell_router(
 
         return FunctionCallResult(result=result)
 
-    def _handle_book_appointment(angel: Angel, args: dict, conn) -> str:
+    def _handle_book_appointment(
+        angel: Angel, args: dict, conn, tenant_id: str, call_id: Optional[str]
+    ) -> str:
         preferred_time = args.get("preferred_time")
         if not preferred_time or not preferred_time.strip():
             return "I didn't catch a valid time for that -- could you repeat the preferred time?"
@@ -201,6 +271,25 @@ def create_retell_router(
                 notes=args.get("notes"),
                 sync_to_ghl=False,
             )
+            # Attribution: this is the event the dashboard's "appointments
+            # booked" / "estimated value" figures are built on. Best-effort,
+            # same posture as the call-lifecycle logging above -- a failure
+            # here must never undo or block a real booking that already
+            # succeeded.
+            try:
+                tracking = TrackingNumberRepository(conn).get_for_tenant(tenant_id)
+                CallEventRepository(conn).log_event(
+                    CallEvent(
+                        tenant_id=tenant_id,
+                        event_type="appointment_booked",
+                        tracking_number=tracking.tracking_number if tracking else None,
+                        call_id=call_id,
+                        outcome="booked",
+                    )
+                )
+            except (*DB_ERRORS, StorageError):
+                logger.exception("retell_attribution_logging_failed tenant=%s event=appointment_booked", tenant_id)
+
             conn.commit()
             return f"You're all set for {appt.starts_at}. You'll get a confirmation shortly."
         except DB_ERRORS:
